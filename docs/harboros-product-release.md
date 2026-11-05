@@ -16,7 +16,7 @@ Nexus 的 Beacon 产品配置使用现有内部 `n1` ABI；N2 保持 `n2`。
 `HARBOROS_RELEASE_MANIFEST` 指向已评审、纳入版本管理的 JSON。输入至少包含：
 
 - `schema_version=1`、`product=nexus`、`architecture=amd64`，以及
-  `system_version=26.04.0-NEXUS-<revision>`。
+  `system_version=26.04.0-NEXUS-<revision>`，以及正整数 `source_date_epoch`。
 - `components.beacon/gate/webui/middleware/harborlink/runtime` 的 GitHub 仓库和完整 Git SHA。
   WebUI、middleware 额外记录引用名及 26.04.0 基线；实际 checkout 使用 SHA，引用移动不改变输入。
 - `packages.harboros-beacon/harboros-im-gate/harborlink` 的 Nexus 版本、amd64、源码 SHA、
@@ -31,6 +31,9 @@ Nexus 的 Beacon 产品配置使用现有内部 `n1` ABI；N2 保持 `n2`。
 
 私有 GitHub release 资产读取使用构建机的最小只读凭据；Actions 可配置
 `COMPONENT_RELEASE_READ_TOKEN`。令牌仅通过环境传给官方 GitHub API，不进入锁、包或日志。
+草稿 release 的按 tag 查询可能返回 404；解析器只在这一状态下分页读取官方 GitHub releases 列表，
+按完全相同的 tag_name 找到草稿，再使用同仓库的数字 asset API 下载。401、403 或服务器错误不会回退。
+逻辑 URL 仍使用带版本的 release/download 路径，不为草稿伪造可公开访问的标签。
 构建机还须具备所锁源码仓库的 Git 读取权限。现有 COS/R2 分发凭据不等于组件读取凭据。
 内部候选锁中的 URL 在对应资产上传之前不可用，不应把只有文件名的计划写成可下载产物。
 
@@ -43,7 +46,8 @@ export HARBOROS_PRODUCT=nexus
 export HARBOROS_ARCHITECTURE=amd64
 export HARBOROS_RELEASE_MANIFEST="$PWD/releases/<reviewed-nexus-release>.json"
 export TRUENAS_VENDOR=HarborOS
-export TRUENAS_VERSION=26.04.0-NEXUS-RC1
+export TRUENAS_VERSION="$(python3 -c 'import json,os;print(json.load(open(os.environ["HARBOROS_RELEASE_MANIFEST"]))["system_version"])')"
+export SOURCE_DATE_EPOCH="$(python3 -c 'import json,os;print(json.load(open(os.environ["HARBOROS_RELEASE_MANIFEST"]))["source_date_epoch"])')"
 export TRUENAS_TRAIN=TrueNAS-SCALE-Halfmoon-RC
 make checkout
 make packages
@@ -51,13 +55,33 @@ make update
 make iso
 ```
 
-四个阶段使用同一锁、系统版本和 train。Actions 的两个 ISO workflow 仍只有
+四个阶段使用同一锁、系统版本、SOURCE_DATE_EPOCH 和 train。
+正式构建会拒绝与锁不符的 epoch 或系统版本；BUILD_TIME 与生成的 Debian 版本时间戳使用锁定的 UTC epoch。
+这只固定已声明的时间输入，不意味着完整 ISO 已可重现；APT、编译器和实际安装依赖仍由收据记录并待人工资格验证。Actions 的两个 ISO workflow 仍只有
 `workflow_dispatch`，默认保存候选 artifact。`publishArtifacts=false`，测试更新索引的
 `releaseUpdate=false`；组件候选或真机验收未通过时，发布开关被资格检查拒绝。
 不会自动发布 stable，也不会把 N2 交给本 ISO profile。
 
 完整锁随 rootfs 安装至 `/usr/share/harboros/release-manifest.json`，
 Git manifest 使用完整 SHA。不要在工作树脏改动上复用组件源码 checkout。
+
+## 实际构建收据与法律声明
+
+WebUI、middleware 及其共享源码子包在保存实际 Debian 输出之后、删除构建 overlay 之前，
+写入 tmp/pkgdir/<build-target>.build-receipt.json 及 SHA256 旁文件。收据绑定源码仓库和完整 SHA、
+系统版本、source_date_epoch、实际 .deb/.udeb 字节 SHA256、Debian 名称/版本/架构/依赖字段、
+构建 chroot 的实际 dpkg 包与依赖清单，以及限定的 node/yarn/python3/dpkg-deb/gcc 版本。
+不序列化环境变量、secret_env、服务 token 或客户数据。版本探测不允许 Corepack 联网。
+
+正式源码工作树脏改动被拒绝。源码不变但 epoch、系统版本或收据不匹配时，缓存包重新构建。
+rootfs 组装会重新验证每个锁定源码目标的收据摘要、实际 Debian 字节和字段、源码 pin、
+已安装版本/架构，以及全部锁定外部包；缺失或篡改会在 mksquashfs 之前失败。
+实际 rootfs dpkg 依赖清单和锁定外部包记录到 /usr/share/harboros/build-receipt.json，
+同时输出到候选目录和 update 内层，并由候选 manifest 绑定收据 SHA256。
+这属于受信构建过程的输入/输出证据，不替代完整可重现构建或真机验收。
+
+原有清理仍移除其他 /usr/share/doc 内容、APT 缓存和临时列表；只保留以下组件目录内的
+许可证与第三方声明：harboros-beacon、harboros-im-gate、harborlink、harboros-ffmpeg。
 
 ## 首次启动和升级
 

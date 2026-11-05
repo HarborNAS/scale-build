@@ -5,14 +5,21 @@ import re
 import shlex
 import shutil
 
-from datetime import datetime
+from datetime import datetime, timezone
+from scale_build.build_receipts import record_source_build
 from scale_build.config import BUILD_TIME, VERSION, TRUENAS_VENDOR
 from scale_build.exceptions import CallError
-from scale_build.product_profiles import verify_source_pin
+from scale_build.product_profiles import release_build_epoch, source_pin, verify_source_pin
 from scale_build.utils.environment import APT_ENV
 from scale_build.utils.manifest import get_truenas_train, get_release_code_name, get_secret_env, get_manifest
 from scale_build.utils.run import run
 from scale_build.utils.paths import PKG_DIR
+
+
+def package_version_timestamp():
+    epoch = release_build_epoch()
+    timestamp = datetime.fromtimestamp(epoch, timezone.utc) if epoch is not None else datetime.today()
+    return timestamp.strftime('%Y%m%d%H%M%S')
 
 
 class BuildPackageMixin:
@@ -69,6 +76,9 @@ class BuildPackageMixin:
         env = {
             'RELEASE_VERSION': VERSION,
         }
+        epoch = release_build_epoch()
+        if epoch is not None:
+            env['SOURCE_DATE_EPOCH'] = str(epoch)
         secrets = get_secret_env()
         for k in filter(lambda k: k in secrets, self.secret_env):
             env[k] = secrets[k]
@@ -111,7 +121,11 @@ class BuildPackageMixin:
 
     def _build_impl(self):
         observed = self.retrieve_current_remote_origin_and_sha()
-        verify_source_pin(self.name, observed['sha'], observed['url'])
+        verify_source_pin(self.source_name, observed['sha'], observed['url'])
+        if source_pin(self.source_name) is not None:
+            status = run(['git', '-C', self.source_path, 'status', '--porcelain'], log=False).stdout
+            if status.strip():
+                raise CallError('Refusing to build modified immutable component sources')
         shutil.copytree(self.source_path, self.source_in_chroot, dirs_exist_ok=True, symlinks=True)
         if os.path.exists(os.path.join(self.dpkg_overlay_packages_path, 'Packages.gz')):
             self.run_in_chroot('apt update')
@@ -171,7 +185,7 @@ class BuildPackageMixin:
         # Make a programmatically generated version for this build
         generate_version_flags = ''
         if self.generate_version:
-            generate_version_flags = f' -v {datetime.today().strftime("%Y%m%d%H%M%S")}~truenas+1 '
+            generate_version_flags = f' -v {package_version_timestamp()}~truenas+1 '
 
         debian_release = get_manifest()['debian_release']
         distribution = f'{debian_release}-truenas-unstable'
@@ -194,6 +208,11 @@ class BuildPackageMixin:
         for pkg in filter(lambda p: p.endswith(('.deb', '.udeb')), os.listdir(package_dir)):
             shutil.move(os.path.join(package_dir, pkg), os.path.join(PKG_DIR, pkg))
             built_packages.append(pkg)
+
+        record_source_build(
+            self.name, self.source_name, observed, built_packages, PKG_DIR, self.dpkg_overlay,
+            VERSION, self.build_depends, self.package_source, release_build_epoch()
+        )
 
         with open(self.pkglist_hash_file_path, 'w') as f:
             f.write('\n'.join(built_packages))

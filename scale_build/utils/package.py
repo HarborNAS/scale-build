@@ -15,6 +15,7 @@ def get_sources():
 def get_packages():
     pkgs = []
     for pkg in get_manifest()['sources']:
+        pkg = pkg.copy()
         sub_packages = pkg.pop('subpackages', [])
         pkg = Package(**pkg)
         if pkg.to_build:

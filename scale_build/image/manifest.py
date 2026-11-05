@@ -5,6 +5,7 @@ import os
 import shutil
 import subprocess
 
+from scale_build.build_receipts import RECEIPT_NAME, read_checked_json
 from scale_build.exceptions import CallError
 from scale_build.utils.kernel import get_kernel_version
 from scale_build.utils.paths import BUILDER_DIR, CHROOT_BASEDIR, RELEASE_DIR, UPDATE_DIR
@@ -55,6 +56,7 @@ def build_release_manifest(update_file, update_file_checksum):
     with open(os.path.join(UPDATE_DIR, 'manifest.json')) as f:
         manifest = json.load(f)
 
+    _, receipt_digest = read_checked_json(os.path.join(RELEASE_DIR, RECEIPT_NAME))
     with open(RELEASE_MANIFEST, 'w') as f:
         json.dump({
             'filename': os.path.basename(update_file),
@@ -63,6 +65,7 @@ def build_release_manifest(update_file, update_file_checksum):
             'changelog': '',
             'checksum': update_file_checksum,
             'filesize': os.path.getsize(update_file),
+            'build_receipt': {'filename': RECEIPT_NAME, 'sha256': receipt_digest},
         }, f)
 
 

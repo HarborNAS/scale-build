@@ -1,6 +1,9 @@
 from os import environ, cpu_count
 from time import time
-from datetime import datetime
+from datetime import datetime, timezone
+
+from scale_build.exceptions import CallError
+from scale_build.product_profiles import release_lock, source_date_epoch
 
 IDENTITY_FILE_PATH_OVERRIDE_SUFFIX = '_OVERRIDE_IDENTITY_FILE_PATH'
 _VERS = '26.04.0-MASTER'
@@ -31,8 +34,11 @@ def get_normalized_value(value, _type, default_value=None):
 
 APT_BASE_CUSTOM = get_env_variable('APT_BASE_CUSTOM', str)
 APT_INTERNAL_BUILD = get_env_variable('APT_INTERNAL_BUILD', bool, False)
-BUILD_TIME = int(time())
-BUILD_TIME_OBJ = datetime.fromtimestamp(BUILD_TIME)
+FORMAL_RELEASE_LOCK = release_lock(required=True) if environ.get('HARBOROS_RELEASE_MANIFEST') else None
+FORMAL_SOURCE_DATE_EPOCH = source_date_epoch(FORMAL_RELEASE_LOCK) if FORMAL_RELEASE_LOCK else None
+BUILD_TIME = FORMAL_SOURCE_DATE_EPOCH if FORMAL_SOURCE_DATE_EPOCH is not None else int(time())
+BUILD_TIME_OBJ = (datetime.fromtimestamp(BUILD_TIME, timezone.utc) if FORMAL_RELEASE_LOCK
+                  else datetime.fromtimestamp(BUILD_TIME))
 BUILDER_DIR = get_env_variable('BUILDER_DIR', str, './')
 BRANCH_OUT_NAME = get_env_variable('NEW_BRANCH_NAME', str)
 BRANCH_OVERRIDES = {}
@@ -49,7 +55,12 @@ SKIP_SOURCE_REPO_VALIDATION = get_env_variable('SKIP_SOURCE_REPO_VALIDATION', bo
 TRAIN = get_env_variable('TRUENAS_TRAIN', str)
 TRUENAS_BRANCH_OVERRIDE = get_env_variable('TRUENAS_BRANCH_OVERRIDE', str)
 TRY_BRANCH_OVERRIDE = get_env_variable('TRY_BRANCH_OVERRIDE', str)
-VERSION = get_env_variable('TRUENAS_VERSION', str, f'{_VERS}-{BUILD_TIME_OBJ.strftime("%Y%m%d-%H%M%S")}')
+if FORMAL_RELEASE_LOCK:
+    VERSION = FORMAL_RELEASE_LOCK['system_version']
+    if environ.get('TRUENAS_VERSION') and environ['TRUENAS_VERSION'] != VERSION:
+        raise CallError('TRUENAS_VERSION differs from the immutable release lock')
+else:
+    VERSION = get_env_variable('TRUENAS_VERSION', str, f'{_VERS}-{BUILD_TIME_OBJ.strftime("%Y%m%d-%H%M%S")}')
 TRUENAS_VENDOR = get_env_variable('TRUENAS_VENDOR', str)
 HARBOROS_PRODUCT = get_env_variable('HARBOROS_PRODUCT', str, 'nexus')
 HARBOROS_ARCHITECTURE = get_env_variable('HARBOROS_ARCHITECTURE', str, 'amd64')

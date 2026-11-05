@@ -88,33 +88,38 @@ jobs:
         train='TrueNAS-SCALE-'+code_name+os.environ.get('TRAIN_SUFFIX','')
         with open(os.environ['GITHUB_OUTPUT'],'a') as output:
             output.write('HarborNAS_VERSION='+version+'\nTRUENAS_TRAIN='+train+'\n')
+            output.write('SOURCE_DATE_EPOCH='+str(lock['source_date_epoch'])+'\n')
         PY
     - name: Checkout immutable component sources
       run: |
-        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make checkout
+        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make checkout
       env:
+        SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
         TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
         TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
         TRUENAS_VENDOR: HarborOS
     - name: Build Debian components
       run: |
-        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make packages
+        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make packages
       env:
+        SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
         TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
         TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
         TRUENAS_VENDOR: HarborOS
     - name: Build native update image
       run: |
-        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,HARBOROS_COMPONENT_READ_TOKEN make update
+        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,HARBOROS_COMPONENT_READ_TOKEN make update
       env:
         HARBOROS_COMPONENT_READ_TOKEN: ${{ secrets.COMPONENT_RELEASE_READ_TOKEN }}
+        SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
         TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
         TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
         TRUENAS_VENDOR: HarborOS
     - name: Build ISO
       run: |
-        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make iso
+        sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make iso
       env:
+        SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
         TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
         TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
         TRUENAS_VENDOR: HarborOS

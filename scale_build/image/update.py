@@ -10,11 +10,13 @@ import stat
 import tempfile
 import time
 
+from scale_build.build_receipts import LEGAL_NOTICE_PACKAGES, RECEIPT_NAME, write_rootfs_build_receipt
 from scale_build.config import SIGNING_KEY, SIGNING_PASSWORD
+from scale_build.exceptions import CallError
 from scale_build.extensions import build_extensions as do_build_extensions
 from scale_build.utils.manifest import get_manifest, get_apt_repos
 from scale_build.utils.run import run
-from scale_build.utils.paths import CHROOT_BASEDIR, RELEASE_DIR, UPDATE_DIR
+from scale_build.utils.paths import CHROOT_BASEDIR, PKG_DIR, RELEASE_DIR, UPDATE_DIR
 
 from .bootstrap import umount_chroot_basedir
 from .manifest import build_manifest, build_release_manifest, get_version, update_file_path, update_file_checksum_path
@@ -36,6 +38,12 @@ def build_rootfs_image():
     os.makedirs(UPDATE_DIR)
 
     version = get_version()
+    lock = release_lock(required=True)
+    if version != lock['system_version']:
+        raise CallError('Rootfs system version differs from the immutable release lock')
+    write_rootfs_build_receipt(Path(CHROOT_BASEDIR), Path(PKG_DIR), Path(RELEASE_DIR), lock, get_manifest())
+    for filename in (RECEIPT_NAME, RECEIPT_NAME + '.sha256'):
+        shutil.copy2(Path(CHROOT_BASEDIR) / 'usr/share/harboros' / filename, Path(UPDATE_DIR) / filename)
 
     # Generate audit rules
     gencmd = os.path.join(CHROOT_BASEDIR, 'conf', 'audit_rules', 'privileged-rules.py')
@@ -186,7 +194,10 @@ def post_rootfs_setup():
         os.chmod(pkg_mgmt_disabled_path, old_mode | executable_flag)
 
 
-def download_and_install_deb_package(package_name, download_url, deb_filename, post_install_commands=None, expected_sha256=None, stage_only=False, component_pin=None):
+def download_and_install_deb_package(
+    package_name, download_url, deb_filename, post_install_commands=None,
+    expected_sha256=None, stage_only=False, component_pin=None,
+):
     """
     Download and install a .deb package from a URL.
 
@@ -295,8 +306,10 @@ def install_external_packages():
             version = package_config['deb_version']
             url = package_config['url_template'].format(package=package_name, version=version, arch=get_debian_arch())
             filename = url.split('/')[-1]
-            staged.append(download_and_install_deb_package(package_name, url, filename,
-                expected_sha256=package_config.get('sha256'), stage_only=True, component_pin=package_config.get('component_pin')))
+            staged.append(download_and_install_deb_package(
+                package_name, url, filename, expected_sha256=package_config.get('sha256'), stage_only=True,
+                component_pin=package_config.get('component_pin'),
+            ))
             commands.extend(package_config.get('post_install_commands', []))
         install_staged_external_packages(staged, commands)
     finally:
@@ -374,14 +387,29 @@ def clean_rootfs():
         if f.startswith('ssh_host_') and (f.endswith('_key') or f.endswith('_key.pub') or f.endswith('key-cert.pub')):
             os.unlink(os.path.join(ssh_keys, f))
 
+    prune_documentation(Path(CHROOT_BASEDIR))
+
     for path in (
-        os.path.join(CHROOT_BASEDIR, 'usr/share/doc'),
         os.path.join(CHROOT_BASEDIR, 'var/cache/apt'),
         os.path.join(CHROOT_BASEDIR, 'var/lib/apt/lists'),
         os.path.join(CHROOT_BASEDIR, 'var/trash'),
     ):
         shutil.rmtree(path)
         os.makedirs(path, exist_ok=True)
+
+
+def prune_documentation(root):
+    documentation = Path(root) / 'usr/share/doc'
+    if documentation.is_symlink():
+        raise CallError('Rootfs documentation directory must not be a symlink')
+    documentation.mkdir(parents=True, exist_ok=True)
+    for entry in documentation.iterdir():
+        if entry.name in LEGAL_NOTICE_PACKAGES and entry.is_dir() and not entry.is_symlink():
+            continue
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
 
 
 def build_extensions():

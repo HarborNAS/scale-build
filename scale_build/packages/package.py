@@ -3,9 +3,11 @@ import json
 import logging
 import os
 
+from scale_build.build_receipts import source_build_receipt_matches
 from scale_build.exceptions import CallError
+from scale_build.product_profiles import SOURCE_NAMES, release_lock
 from scale_build.utils.run import run
-from scale_build.utils.paths import HASH_DIR, PKG_LOG_DIR, SOURCES_DIR
+from scale_build.utils.paths import HASH_DIR, PKG_DIR, PKG_LOG_DIR, SOURCES_DIR
 
 from .binary_package import BinaryPackage
 from .bootstrap import BootstrapMixin
@@ -163,6 +165,9 @@ class Package(BootstrapMixin, BuildPackageMixin, BuildCleanMixin, CCacheMixin, G
             with open(self.hash_path, 'r') as f:
                 existing_hash = f.read().strip()
         if source_hash == existing_hash:
+            lock = release_lock() if self.source_name in SOURCE_NAMES else None
+            if lock and not source_build_receipt_matches(self.name, self.source_name, source_hash, PKG_DIR, lock):
+                return True
             return run(
                 ['git', '-C', self.source_path, 'diff-files', '--quiet', '--ignore-submodules'], check=False, log=False
             ).returncode != 0
