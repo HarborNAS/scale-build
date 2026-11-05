@@ -17,6 +17,7 @@ from .update_image import build_update_image
 from .utils.logger import ConsoleFilter, LogHandler
 from .utils.manifest import get_manifest
 from .validate import validate
+from .product_profiles import selected_profile
 
 
 logger = logging.getLogger('scale_build')
@@ -38,6 +39,7 @@ def setup_logging():
 
 
 def validate_config():
+    selected_profile()
     manifest = get_manifest()
     packages = [p['name'] for p in manifest['sources']]
     invalid_overrides = [o for o in BRANCH_OVERRIDES if o not in packages]
@@ -50,6 +52,7 @@ def validate_config():
 def main():
     setup_logging()
     preflight_check()
+    validate_config()
     parser = argparse.ArgumentParser(prog='scale-build')
     subparsers = parser.add_subparsers(help='sub-command help', dest='action')
 

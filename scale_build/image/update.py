@@ -19,6 +19,7 @@ from .bootstrap import umount_chroot_basedir
 from .manifest import build_manifest, build_release_manifest, get_version, update_file_path, update_file_checksum_path
 from .mtree import generate_mtree
 from .utils import run_in_chroot
+from ..product_profiles import external_package_url
 
 
 logger = logging.getLogger(__name__)
@@ -288,15 +289,11 @@ def install_external_packages():
 
         deb_version = package_config['deb_version']
         arch = get_debian_arch()
-        url_template = package_config['url_template']
         post_install_commands = package_config.get('post_install_commands', [])
 
-        # Format the URL template with the package configuration
-        download_url = url_template.format(
-            package=package_name,
-            version=deb_version,
-            arch=arch
-        )
+        # Explicit Nexus product builds resolve Beacon/Gate from the immutable
+        # product profile; all other external packages retain manifest URLs.
+        download_url = external_package_url(package_name, package_config)
 
         # Extract filename from URL for caching
         deb_filename = download_url.split('/')[-1]

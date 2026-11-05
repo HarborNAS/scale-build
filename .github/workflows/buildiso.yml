@@ -7,6 +7,24 @@ on:
         description: "version number"
         required: true
         type: string
+      product:
+        description: "HarborOS product profile"
+        required: true
+        default: "nexus"
+        type: string
+      architecture:
+        description: "Target architecture"
+        required: true
+        default: "amd64"
+        type: string
+      beaconVersion:
+        description: "Immutable HarborBeacon package version"
+        required: true
+        type: string
+      gateVersion:
+        description: "Immutable HarborGate package version"
+        required: true
+        type: string
 
 jobs:
   build-iso:
@@ -36,13 +54,13 @@ jobs:
           sudo truenas_webui_OVERRIDE=${{inputs.version}} truenas_OVERRIDE=${{inputs.version}} make checkout
       - name: Builds all the *.deb packages
         run: |
-          sudo TRUENAS_VENDOR=HarborOS TRUENAS_VERSION=${{steps.set-version.outputs.HarborNAS_VERSION}} TRUENAS_TRAIN=${{steps.set-version.outputs.TRUENAS_TRAIN}} make packages
+          sudo HARBOROS_PRODUCT=${{inputs.product}} HARBOROS_ARCHITECTURE=${{inputs.architecture}} HARBOROS_BEACON_VERSION=${{inputs.beaconVersion}} HARBOROS_GATE_VERSION=${{inputs.gateVersion}} TRUENAS_VENDOR=HarborOS TRUENAS_VERSION=${{steps.set-version.outputs.HarborNAS_VERSION}} TRUENAS_TRAIN=${{steps.set-version.outputs.TRUENAS_TRAIN}} make packages
       - name: Builds the stand-alone update file
         run: |
-          sudo make update
+          sudo HARBOROS_PRODUCT=${{inputs.product}} HARBOROS_ARCHITECTURE=${{inputs.architecture}} HARBOROS_BEACON_VERSION=${{inputs.beaconVersion}} HARBOROS_GATE_VERSION=${{inputs.gateVersion}} make update
       - name: Builds the ISO image
         run: |
-          sudo TRUENAS_VENDOR=HarborOS make iso
+          sudo HARBOROS_PRODUCT=${{inputs.product}} HARBOROS_ARCHITECTURE=${{inputs.architecture}} HARBOROS_BEACON_VERSION=${{inputs.beaconVersion}} HARBOROS_GATE_VERSION=${{inputs.gateVersion}} TRUENAS_VENDOR=HarborOS make iso
       - name: upload iso
         env:
           QCLOUD_ACCESS_KEY_ID: ${{ secrets.QCLOUD_SECRETID }}
