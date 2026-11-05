@@ -53,6 +53,8 @@ jobs:
   build-iso:
     runs-on:
     - self-hosted
+    - Linux
+    - X64
     timeout-minutes: 240
     steps:
     - name: Checkout build system
