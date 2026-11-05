@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 from scale_build.config import APT_BASE_CUSTOM, APT_INTERNAL_BUILD, SKIP_SOURCE_REPO_VALIDATION, TRAIN, SECRET_ENV_VARS
 from scale_build.exceptions import CallError, MissingManifest
+from scale_build.product_profiles import apply_release_lock
 from scale_build.utils.paths import MANIFEST, SECRETS_FILE
 
 
@@ -231,7 +232,7 @@ def validate_apt_preferences_order(manifest):
 @functools.cache
 def get_manifest():
     try:
-        manifest = yaml.safe_load(get_manifest_str())
+        manifest = apply_release_lock(yaml.safe_load(get_manifest_str()))
         jsonschema.validate(manifest, MANIFEST_SCHEMA)
         validate_apt_preferences_order(manifest)
         return manifest

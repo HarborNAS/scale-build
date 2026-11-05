@@ -3,6 +3,7 @@ import itertools
 import logging
 import os
 import platform
+from pathlib import Path
 import requests
 import shutil
 import stat
@@ -19,7 +20,7 @@ from .bootstrap import umount_chroot_basedir
 from .manifest import build_manifest, build_release_manifest, get_version, update_file_path, update_file_checksum_path
 from .mtree import generate_mtree
 from .utils import run_in_chroot
-from ..product_profiles import external_package_url
+from ..product_profiles import verify_download, release_lock, github_asset_request, verify_debian_component
 
 
 logger = logging.getLogger(__name__)
@@ -185,7 +186,7 @@ def post_rootfs_setup():
         os.chmod(pkg_mgmt_disabled_path, old_mode | executable_flag)
 
 
-def download_and_install_deb_package(package_name, download_url, deb_filename, post_install_commands=None):
+def download_and_install_deb_package(package_name, download_url, deb_filename, post_install_commands=None, expected_sha256=None, stage_only=False, component_pin=None):
     """
     Download and install a .deb package from a URL.
 
@@ -204,7 +205,8 @@ def download_and_install_deb_package(package_name, download_url, deb_filename, p
         # Download the package using requests
         for retry in range(5):
             try:
-                response = requests.get(download_url, stream=True, timeout=60, allow_redirects=True)
+                asset_url, asset_headers = github_asset_request(download_url, requests.get)
+                response = requests.get(asset_url, headers=asset_headers, stream=True, timeout=60, allow_redirects=True)
                 response.raise_for_status()
 
                 # Write the content to file in chunks to handle large files efficiently
@@ -225,21 +227,29 @@ def download_and_install_deb_package(package_name, download_url, deb_filename, p
         if not os.path.exists(deb_path) or os.path.getsize(deb_path) == 0:
             raise RuntimeError(f'Downloaded {package_name} package is missing or empty: {deb_path}')
 
+        # Verify pinned artifacts before copying or executing any maintainer script.
+        verify_download(Path(deb_path), expected_sha256)
+        if component_pin:
+            verify_debian_component(Path(deb_path), package_name, component_pin)
+
         # Copy the package into the chroot
         chroot_tmp_path = os.path.join(CHROOT_BASEDIR, 'tmp', deb_filename)
         shutil.copy2(deb_path, chroot_tmp_path)
 
+        if stage_only:
+            return f'/tmp/{deb_filename}'
+
         # Install the package in the chroot
         logger.info(f'Installing {package_name} package')
         try:
-            run_in_chroot(['dpkg', '-i', f'/tmp/{deb_filename}'])
+            run_in_chroot(['env', 'SYSTEMD_OFFLINE=1', 'dpkg', '-i', f'/tmp/{deb_filename}'])
             # Fix any dependency issues
-            run_in_chroot(['apt-get', 'install', '-f', '-y'])
+            run_in_chroot(['env', 'SYSTEMD_OFFLINE=1', 'apt-get', 'install', '-f', '-y'])
 
             # Run any additional post-install commands
             if post_install_commands:
                 for cmd in post_install_commands:
-                    run_in_chroot(cmd)
+                    run_in_chroot(['env', 'SYSTEMD_OFFLINE=1', *cmd])
 
             logger.info(f'Successfully installed {package_name} package')
         except Exception as e:
@@ -275,43 +285,46 @@ def install_external_packages():
         logger.info('No external packages defined in build.manifest')
         return
 
-    for package_name, package_config in external_packages.items():
-        logger.info(f'Installing external package: {package_name}')
+    staged = []
+    commands = []
+    try:
+        for package_name, package_config in external_packages.items():
+            logger.info('Staging external package: %s', package_name)
+            if not package_config.get('deb_version') or not package_config.get('url_template'):
+                raise RuntimeError(f'{package_name}: a pinned version and artifact URL are required')
+            version = package_config['deb_version']
+            url = package_config['url_template'].format(package=package_name, version=version, arch=get_debian_arch())
+            filename = url.split('/')[-1]
+            staged.append(download_and_install_deb_package(package_name, url, filename,
+                expected_sha256=package_config.get('sha256'), stage_only=True, component_pin=package_config.get('component_pin')))
+            commands.extend(package_config.get('post_install_commands', []))
+        install_staged_external_packages(staged, commands)
+    finally:
+        for filename in staged:
+            path = Path(CHROOT_BASEDIR) / filename.lstrip('/')
+            path.unlink(missing_ok=True)
 
-        # Extract configuration with validation
-        if 'deb_version' not in package_config:
-            logger.error(f'{package_name}: deb_version is required in build.manifest')
-            continue
 
-        if 'url_template' not in package_config:
-            logger.error(f'{package_name}: url_template is required in build.manifest')
-            continue
-
-        deb_version = package_config['deb_version']
-        arch = get_debian_arch()
-        post_install_commands = package_config.get('post_install_commands', [])
-
-        # Explicit Nexus product builds resolve Beacon/Gate from the immutable
-        # product profile; all other external packages retain manifest URLs.
-        download_url = external_package_url(package_name, package_config)
-
-        # Extract filename from URL for caching
-        deb_filename = download_url.split('/')[-1]
-
-        # Install the package
-        download_and_install_deb_package(
-            package_name,
-            download_url,
-            deb_filename,
-            post_install_commands
-        )
+def install_staged_external_packages(staged, commands):
+    # All package bytes have been verified before any maintainer script runs.
+    # A single local APT transaction also resolves Beacon -> Gate/Link ordering.
+    run_in_chroot(['env', 'SYSTEMD_OFFLINE=1', 'apt-get', 'install', '-y', *staged])
+    for command in commands:
+        run_in_chroot(['env', 'SYSTEMD_OFFLINE=1', *command])
 
 
 def custom_rootfs_setup():
+    lock = release_lock(required=True)
+    output = Path(CHROOT_BASEDIR) / 'usr/share/harboros/release-manifest.json'
+    output.parent.mkdir(parents=True, exist_ok=True)
+    import json
+    output.write_text(json.dumps(lock, indent=2) + '\n', encoding='utf-8')
     # Any kind of custom mangling of the built rootfs image can exist here
 
     # Install all external packages defined in build.manifest
     install_external_packages()
+    from ..product_profiles import verify_unprovisioned_image
+    verify_unprovisioned_image(Path(CHROOT_BASEDIR))
 
     os.makedirs(os.path.join(CHROOT_BASEDIR, 'boot/grub'), exist_ok=True)
 

@@ -8,6 +8,7 @@ import shutil
 from datetime import datetime
 from scale_build.config import BUILD_TIME, VERSION, TRUENAS_VENDOR
 from scale_build.exceptions import CallError
+from scale_build.product_profiles import verify_source_pin
 from scale_build.utils.environment import APT_ENV
 from scale_build.utils.manifest import get_truenas_train, get_release_code_name, get_secret_env, get_manifest
 from scale_build.utils.run import run
@@ -109,6 +110,8 @@ class BuildPackageMixin:
         }
 
     def _build_impl(self):
+        observed = self.retrieve_current_remote_origin_and_sha()
+        verify_source_pin(self.name, observed['sha'], observed['url'])
         shutil.copytree(self.source_path, self.source_in_chroot, dirs_exist_ok=True, symlinks=True)
         if os.path.exists(os.path.join(self.dpkg_overlay_packages_path, 'Packages.gz')):
             self.run_in_chroot('apt update')

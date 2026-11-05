@@ -1,18 +1,10 @@
-# Product profiles consumed by the formal HarborOS/TrueNAS build lane.
-# N2/RISC-V is assembled by harboros/products/navi-n2 and is intentionally
-# rejected by scale-build.
 profiles:
   nexus:
     architecture: amd64
     train_family: Halfmoon
-    component_package_suffix: _linux_amd64
-    beacon_package: harboros-beacon
-    gate_package: harboros-im-gate
     webui_package: truenas-webui
-    component_release_url: https://github.com/Bean-Harbor-Engineering/{package}/releases/download/v{version}/{package}_{version}_linux_amd64.deb
-    requires_model_runtime: true
     runtime_mode: n1
   n2:
     architecture: riscv64
-    external_builder: harboros/products/navi-n2
+    external_builder: HarborNavi n2-406-build / harboros/products/navi-n2
     scale_build_supported: false

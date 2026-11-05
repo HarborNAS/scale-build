@@ -17,7 +17,7 @@ from .update_image import build_update_image
 from .utils.logger import ConsoleFilter, LogHandler
 from .utils.manifest import get_manifest
 from .validate import validate
-from .product_profiles import selected_profile
+from .product_profiles import selected_profile, release_lock
 
 
 logger = logging.getLogger('scale_build')
@@ -78,6 +78,8 @@ def main():
         validate_parser.set_defaults(**{action: True})
 
     args = parser.parse_args()
+    if args.action in ('checkout', 'packages', 'update', 'iso'):
+        release_lock(required=True)
     if args.action == 'checkout':
         check_epoch()
         checkout_sources()
