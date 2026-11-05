@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "product": "nexus",
+  "architecture": "amd64",
+  "system_version": "26.04.0-NEXUS-RC1-20261105.1",
+  "source_date_epoch": 1793853145,
+  "status": "internal_candidate",
+  "components": {
+    "beacon": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborBeacon",
+      "commit": "59156fb61909cab84d15aa9dcc0bfcb6a24d07f6",
+      "ref": "codex/formal-nexus-beacon-1.1.0"
+    },
+    "gate": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborGate",
+      "commit": "a0a6a5c5e1ee503f200cb7f3afc8f6b9b32413ca",
+      "ref": "codex/formal-nexus-gate-1.1.0"
+    },
+    "harborlink": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborLink",
+      "commit": "2fdbb271f7740c5fc4f6acd2592de92633a89c14",
+      "ref": "codex/formal-nexus-link-1.1.0"
+    },
+    "webui": {
+      "repository": "https://github.com/HarborNAS/webui",
+      "commit": "ca78efa4a0cd215dc6912dc3f2370097bf1e2c0d",
+      "ref": "codex/formal-nexus-webui-1.1.0",
+      "base_commit": "b8dc9017d2b3cc069c30c4338881c2c20d3d797b"
+    },
+    "middleware": {
+      "repository": "https://github.com/HarborNAS/middleware",
+      "commit": "2d7d418cd1fd18865e77bdd811fec9237e14dc0c",
+      "ref": "codex/formal-nexus-middleware-1.1.0",
+      "base_commit": "b176de6984214d3dea98e3d5147614d8c9a9f5f0"
+    },
+    "runtime": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborBeacon",
+      "commit": "59156fb61909cab84d15aa9dcc0bfcb6a24d07f6",
+      "ref": "codex/formal-nexus-beacon-1.1.0"
+    }
+  },
+  "runtime": {
+    "mode": "embedded",
+    "embedded_backend": "candle",
+    "external_endpoint_runtime_status": "needs_separate_runtime_qualification",
+    "packages": {
+      "harboros-ffmpeg": {
+        "architecture": "amd64",
+        "deb_version": "1.0.0",
+        "sha256": "a99decf42b000bfd9c5e54392a4cc6c11a9333fb01ffe6601531671f9442e6a4",
+        "url_template": "https://update.harboros.ai/deb/harboros-ffmpeg_1.0.0_linux_amd64.deb",
+        "release_eligible": false,
+        "blocking_reasons": [
+          "Legacy artifact lacks complete source/license/SBOM/provenance review",
+          "Appliance media acceptance is pending"
+        ]
+      }
+    }
+  },
+  "packages": {
+    "harboros-beacon": {
+      "version": "1.1.0+nexus.amd64.20261105.5",
+      "architecture": "amd64",
+      "source_commit": "59156fb61909cab84d15aa9dcc0bfcb6a24d07f6",
+      "sha256": "2f49a7f048549f6429c98acba1587084dddcff4ed5a481203c22d35c6ae1f5a3",
+      "product_profile": "nexus-amd64",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborBeacon/releases/download/v1.1.0+nexus.amd64.20261105.5/harboros-beacon_1.1.0+nexus.amd64.20261105.5_linux_amd64.deb",
+      "release_eligible": false,
+      "qualification_status": "component_candidate_not_appliance_qualified",
+      "blocking_reasons": [
+        "Nexus first-party distribution approval is not attached",
+        "Appliance acceptance is pending"
+      ]
+    },
+    "harboros-im-gate": {
+      "version": "1.1.0+nexus.amd64.a0a6a5c",
+      "architecture": "amd64",
+      "source_commit": "a0a6a5c5e1ee503f200cb7f3afc8f6b9b32413ca",
+      "sha256": "ccd19372d66d3c1560bc3d0e152b107e004f4a8b08f9a139cc100b679c75f8ba",
+      "product_profile": "nexus-amd64",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborGate/releases/download/v1.1.0+nexus.amd64.a0a6a5c/harboros-im-gate_1.1.0+nexus.amd64.a0a6a5c_linux_amd64.deb",
+      "release_eligible": true,
+      "qualification_status": "component_candidate_not_appliance_qualified"
+    },
+    "harborlink": {
+      "version": "1.1.0+nexus.amd64.2fdbb27",
+      "architecture": "amd64",
+      "source_commit": "2fdbb271f7740c5fc4f6acd2592de92633a89c14",
+      "sha256": "ea7b25f01628c1eb64501fc99d8e9e15c43275743008507f3ddc788667f711bf",
+      "product_profile": "nexus-amd64",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborLink/releases/download/v1.1.0+nexus.amd64.2fdbb27/harborlink_1.1.0+nexus.amd64.2fdbb27_linux_amd64.deb",
+      "release_eligible": false,
+      "qualification_status": "component_candidate_not_appliance_qualified",
+      "blocking_reasons": [
+        "Nexus first-party distribution approval is not attached",
+        "Appliance acceptance is pending"
+      ]
+    }
+  },
+  "acceptance": {
+    "new_install": "pending",
+    "native_upgrade": "pending",
+    "boot_environment_rollback": "pending",
+    "reboot": "pending"
+  }
+}
