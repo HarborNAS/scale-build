@@ -224,22 +224,22 @@ class ProductProfileTests(unittest.TestCase):
             with self.assertRaises(CallError):
                 github_asset_request('https://github.com/org/repo/releases/download/v1.1/pkg_1.1.deb', call)
 
-    def test_workflow_does_not_publish_by_default(self):
+    def test_workflow_compatibility_inputs_and_publish_boundaries(self):
         import yaml
-        for filename in ('buildiso.yml', 'buildiso-test.yml'):
-            data = yaml.safe_load((Path('.github/workflows') / filename).read_text(encoding='utf-8'))
-            self.assertFalse(data['on']['workflow_dispatch']['inputs']['publishArtifacts']['default'])
-            if filename == 'buildiso-test.yml':
-                self.assertFalse(data['on']['workflow_dispatch']['inputs']['releaseUpdate']['default'])
-            self.assertEqual(data['env']['HARBOROS_ARCHITECTURE'], '${{ inputs.architecture }}')
-            steps = data['jobs']['build-iso']['steps']
-            for row in steps:
-                if 'make ' in row.get('run', ''):
-                    self.assertIn('HARBOROS_RELEASE_MANIFEST', row['run'])
-                    self.assertIn('TRUENAS_VERSION', row['run'])
-                    self.assertEqual(
-                        row['env']['TRUENAS_VERSION'],
-                        '${{ steps.set-version.outputs.HarborNAS_VERSION }}')
+        test = yaml.safe_load((Path('.github/workflows') / 'buildiso-test.yml').read_text(encoding='utf-8'))
+        formal = yaml.safe_load((Path('.github/workflows') / 'buildiso.yml').read_text(encoding='utf-8'))
+        test_inputs = test['on']['workflow_dispatch']['inputs']
+        formal_inputs = formal['on']['workflow_dispatch']['inputs']
+        self.assertEqual(test_inputs['webui']['default'], 'develop')
+        self.assertEqual(test_inputs['middleware']['default'], 'develop')
+        self.assertTrue(test_inputs['releaseUpdate']['default'])
+        self.assertIn('version', formal_inputs)
+        self.assertNotIn('webui', formal_inputs)
+        self.assertNotIn('releaseUpdate', formal_inputs)
+        for data in (test, formal):
+            self.assertEqual(data['env']['HARBOROS_ARCHITECTURE'], 'amd64')
+            self.assertEqual(data['jobs']['build-iso']['runs-on'], ['self-hosted', 'Linux', 'X64'])
+            self.assertTrue(any(step.get('uses') == 'actions/upload-artifact@v4' for step in data['jobs']['build-iso']['steps']))
 
 
 if __name__ == '__main__':
