@@ -57,3 +57,22 @@ make iso
 当前 Beacon `.6`、Gate、HarborLink 和 WebUI/middleware 候选仍是内部候选；Nexus 分发授权、旧 FFmpeg 溯源材料和真实整机新装/升级/重启/回退验收未完成。N2 继续走独立 RISC-V 流程，未宣称已有 RISC-V 包或实板资格。
 
 不自动合并 Draft PR、不触发 ISO、不更新 stable OTA、不覆盖 GPU/iSCSI dirty changes。
+
+
+## Daily ISO workflow compatibility
+
+The GitHub Actions pages expose a branch-driven compatibility path for routine
+builds. `build test iso` accepts `webui` and `middleware` branch names (the
+current forks default to `develop`), a test train suffix and an optional test
+OTA-index update. `build iso` accepts the base version `26.04.0`, checks that
+both `HarborNAS/webui` and `HarborNAS/middleware` have that branch, and creates
+the timestamped system version. It uploads the stable ISO/update files but does
+not update the OTA index.
+
+These compatibility builds do not prove that the Harbor Assistant candidate is
+inside the image. The candidate path is the optional strict mode with a reviewed
+release manifest; it resolves the final component SHAs and package hashes and
+runs the publication gates. Before using the simple `version=26.04.0` flow for
+Harbor Assistant, the reviewed WebUI and middleware changes must be present on
+their `26.04.0` branches. The current repositories do not expose a `master`
+branch, so `develop` is the safe development default.
