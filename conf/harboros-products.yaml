@@ -1,0 +1,10 @@
+profiles:
+  nexus:
+    architecture: amd64
+    train_family: Halfmoon
+    webui_package: truenas-webui
+    runtime_mode: n1
+  n2:
+    architecture: riscv64
+    external_builder: HarborNavi n2-406-build / harboros/products/navi-n2
+    scale_build_supported: false

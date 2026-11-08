@@ -8,6 +8,7 @@ from scale_build.config import (
     TRUENAS_BRANCH_OVERRIDE, TRY_BRANCH_OVERRIDE,
 )
 from scale_build.exceptions import CallError
+from scale_build.product_profiles import verify_source_pin, source_pin, checkout_pinned_source
 from scale_build.utils.git_utils import (
     branch_checked_out_locally, branch_exists_in_repository, create_branch,
     retrieve_git_remote_and_sha, retrieve_git_branch, update_git_manifest
@@ -51,6 +52,13 @@ class GitPackageMixin:
 
     def checkout(self, branch_override=None, retries=3):
         self.validate_checkout()
+        pin = source_pin(self.name)
+        if pin is not None:
+            checkout_pinned_source(self.source_path, pin['repository'], pin['commit'], self.git_args)
+            observed = self.retrieve_current_remote_origin_and_sha()
+            verify_source_pin(self.name, observed['sha'], observed['url'])
+            self.update_git_manifest()
+            return
 
         origin_url = self.retrieve_current_remote_origin_and_sha()['url']
         branch = branch_override or self.branch
@@ -126,6 +134,8 @@ class GitPackageMixin:
             else:
                 break
 
+        observed = self.retrieve_current_remote_origin_and_sha()
+        verify_source_pin(self.name, observed['sha'], observed['url'])
         self.update_git_manifest()
         log = 'Checkout ' if not update else 'Updating '
         logger.info(log + 'of git repo %r (using branch %r) complete', self.name, branch)
