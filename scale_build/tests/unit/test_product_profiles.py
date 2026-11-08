@@ -149,6 +149,15 @@ class ProductProfileTests(unittest.TestCase):
             with patch.dict(os.environ, {"HARBOROS_STRICT_RELEASE": value}):
                 self.assertTrue(strict_release_enabled(), value)
 
+    def test_strict_release_flag_parses_boolean_values(self):
+        from scale_build.product_profiles import strict_release_enabled
+        for value in ('1', 'true', 'TRUE', 'yes', 'on'):
+            with patch.dict(os.environ, {'HARBOROS_STRICT_RELEASE': value}):
+                self.assertTrue(strict_release_enabled())
+        for value in ('', '0', 'false', 'no', 'off', 'random'):
+            with patch.dict(os.environ, {'HARBOROS_STRICT_RELEASE': value}):
+                self.assertFalse(strict_release_enabled())
+
     def test_missing_lock_and_cross_product_build_are_rejected(self):
         with patch.dict(os.environ, {
             'HARBOROS_PRODUCT': 'nexus', 'HARBOROS_ARCHITECTURE': 'amd64', 'HARBOROS_RELEASE_MANIFEST': '',
