@@ -108,3 +108,10 @@ jobs:
           coscli config add -b harboros-1317635745 -r ap-guangzhou -a willow --init-skip || true
           for ext in iso iso.sha256; do coscli cp --secret-id "$QCLOUD_ACCESS_KEY_ID" --secret-key "$QCLOUD_SECRET_ACCESS_KEY" "./tmp/release/${isoFileName}.${ext}" "cos://willow/stable/HarborOS-${TRUENAS_VERSION}.${ext}"; done
           for ext in update update.sha256; do coscli cp --secret-id "$QCLOUD_ACCESS_KEY_ID" --secret-key "$QCLOUD_SECRET_ACCESS_KEY" "./tmp/release/${updateFileName}.${ext}" "cos://willow/stable/HarborOS-${TRUENAS_VERSION}.${ext}"; done
+          R2_ENDPOINT="https://b001991453068c59d8f4aa512bc0b16a.r2.cloudflarestorage.com"
+          R2_BUCKET="harboros-update"
+          for ext in iso iso.sha256 update update.sha256; do
+            /usr/local/bin/aws s3api put-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" \
+              --key "scale/${TRUENAS_TRAIN}/HarborOS-${TRUENAS_VERSION}.${ext}" \
+              --body "./tmp/release/$(if [[ "$ext" == iso* ]]; then echo "TrueNAS-SCALE-${TRUENAS_VERSION}-HarborOS"; else echo "TrueNAS-SCALE-${TRUENAS_VERSION}"; fi).${ext}"
+          done
