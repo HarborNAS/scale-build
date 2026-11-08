@@ -22,7 +22,7 @@ from .bootstrap import umount_chroot_basedir
 from .manifest import build_manifest, build_release_manifest, get_version, update_file_path, update_file_checksum_path
 from .mtree import generate_mtree
 from .utils import run_in_chroot
-from ..product_profiles import verify_download, release_lock, github_asset_request, verify_debian_component
+from ..product_profiles import verify_download, release_lock, strict_release_enabled, github_asset_request, verify_debian_component
 
 
 logger = logging.getLogger(__name__)
@@ -38,12 +38,13 @@ def build_rootfs_image():
     os.makedirs(UPDATE_DIR)
 
     version = get_version()
-    lock = release_lock(required=True)
-    if version != lock['system_version']:
-        raise CallError('Rootfs system version differs from the immutable release lock')
-    write_rootfs_build_receipt(Path(CHROOT_BASEDIR), Path(PKG_DIR), Path(RELEASE_DIR), lock, get_manifest())
-    for filename in (RECEIPT_NAME, RECEIPT_NAME + '.sha256'):
-        shutil.copy2(Path(CHROOT_BASEDIR) / 'usr/share/harboros' / filename, Path(UPDATE_DIR) / filename)
+    lock = release_lock(required=strict_release_enabled())
+    if lock is not None:
+        if version != lock['system_version']:
+            raise CallError('Rootfs system version differs from the immutable release lock')
+        write_rootfs_build_receipt(Path(CHROOT_BASEDIR), Path(PKG_DIR), Path(RELEASE_DIR), lock, get_manifest())
+        for filename in (RECEIPT_NAME, RECEIPT_NAME + '.sha256'):
+            shutil.copy2(Path(CHROOT_BASEDIR) / 'usr/share/harboros' / filename, Path(UPDATE_DIR) / filename)
 
     # Generate audit rules
     gencmd = os.path.join(CHROOT_BASEDIR, 'conf', 'audit_rules', 'privileged-rules.py')
@@ -327,17 +328,19 @@ def install_staged_external_packages(staged, commands):
 
 
 def custom_rootfs_setup():
-    lock = release_lock(required=True)
-    output = Path(CHROOT_BASEDIR) / 'usr/share/harboros/release-manifest.json'
-    output.parent.mkdir(parents=True, exist_ok=True)
-    import json
-    output.write_text(json.dumps(lock, indent=2) + '\n', encoding='utf-8')
+    lock = release_lock(required=strict_release_enabled())
+    if lock is not None:
+        output = Path(CHROOT_BASEDIR) / 'usr/share/harboros/release-manifest.json'
+        output.parent.mkdir(parents=True, exist_ok=True)
+        import json
+        output.write_text(json.dumps(lock, indent=2) + '\n', encoding='utf-8')
     # Any kind of custom mangling of the built rootfs image can exist here
 
     # Install all external packages defined in build.manifest
     install_external_packages()
-    from ..product_profiles import verify_unprovisioned_image
-    verify_unprovisioned_image(Path(CHROOT_BASEDIR))
+    if lock is not None:
+        from ..product_profiles import verify_unprovisioned_image
+        verify_unprovisioned_image(Path(CHROOT_BASEDIR))
 
     os.makedirs(os.path.join(CHROOT_BASEDIR, 'boot/grub'), exist_ok=True)
 

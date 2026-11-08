@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from scale_build.product_profiles import (
-    selected_profile, apply_release_lock, release_lock, validate_release_lock, verify_download,
+    selected_profile, apply_release_lock, release_lock, validate_release_lock, verify_download, strict_release_enabled,
     verify_source_pin, verify_unprovisioned_image, assert_publishable, github_asset_request,
 )
 from scale_build.exceptions import CallError
@@ -140,6 +140,14 @@ class ProductProfileTests(unittest.TestCase):
             verify_download(path, hashlib.sha256(path.read_bytes()).hexdigest())
             with self.assertRaises(CallError):
                 verify_download(path, '0' * 64)
+
+    def test_strict_release_flag_parses_false_and_true_explicitly(self):
+        for value in ("", "0", "false", "no", "off", "False"):
+            with patch.dict(os.environ, {"HARBOROS_STRICT_RELEASE": value}):
+                self.assertFalse(strict_release_enabled(), value)
+        for value in ("1", "true", "yes", "on", "TRUE"):
+            with patch.dict(os.environ, {"HARBOROS_STRICT_RELEASE": value}):
+                self.assertTrue(strict_release_enabled(), value)
 
     def test_missing_lock_and_cross_product_build_are_rejected(self):
         with patch.dict(os.environ, {

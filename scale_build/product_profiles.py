@@ -18,6 +18,11 @@ SOURCE_NAMES = {"truenas_webui": "webui", "truenas": "middleware"}
 PACKAGES = {"harboros-beacon": "HarborBeacon", "harboros-im-gate": "HarborGate", "harborlink": "HarborLink"}
 
 
+def strict_release_enabled() -> bool:
+    """Return whether the caller explicitly requested immutable release mode."""
+    return os.environ.get("HARBOROS_STRICT_RELEASE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def selected_profile() -> dict:
     product = os.environ.get("HARBOROS_PRODUCT", "nexus")
     architecture = os.environ.get("HARBOROS_ARCHITECTURE", "amd64")
