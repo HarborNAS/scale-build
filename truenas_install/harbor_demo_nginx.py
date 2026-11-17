@@ -32,7 +32,7 @@ IDENTITY_HEADERS = (
     "X-Harbor-Camera-Scope", "X-Harbor-Workspace-Id", "X-Harbor-User-Id", "X-Harbor-Edge-Assertion",
 )
 LOCATION = re.compile(r"(?m)^(?P<indent>[ \t]*)location[ \t]+(?P<shape>[^\n{]+?)\s*\{(?P<body>[^{}]*)\}")
-PRIVATE_ENDPOINT = re.compile(r":(?:4174|4176|8787)(?=[/;\s])")
+PRIVATE_ENDPOINT = re.compile(r":(?:4174|4176|8787)(?=[/;\s\"'?#])")
 
 
 def _directive(body, name):
@@ -88,7 +88,10 @@ def _location(match):
 
 def render_nginx(text):
     """Adapt only the reviewed native locations; reject other private API routes."""
-    matches = [m for m in LOCATION.finditer(text) if "/api/harbor-beacon" in m["shape"] or "/api/harbor-gate" in m["shape"]]
+    matches = [
+        m for m in LOCATION.finditer(text)
+        if "/api/harbor-beacon" in m["shape"] or "/api/harbor-gate" in m["shape"]
+    ]
     declarations = re.findall(r"(?m)^\s*location[^\n{]*/api/harbor-(?:beacon|gate)[^\n{]*\{", text)
     shapes = [m["shape"].strip() for m in matches]
     if not shapes or len(declarations) != len(matches) or shapes != list(SHAPES) * (len(shapes) // 4):
@@ -97,7 +100,7 @@ def render_nginx(text):
     for match in reversed(matches):
         outside = outside[:match.start()] + outside[match.end():]
     # Also reject named upstreams and variables pointing at these private ports.
-    if PRIVATE_ENDPOINT.search(re.sub(r"(?m)#.*$", "", outside)):
+    if PRIVATE_ENDPOINT.search(outside):
         raise ValueError("Unreviewed public proxy to a private Harbor service")
     for match in reversed(matches):
         text = text[:match.start()] + _location(match) + text[match.end():]
@@ -107,7 +110,10 @@ def render_nginx(text):
         "# Retained Demo compatibility: NAS-authenticated edge only; external legacy Gate disabled.\n"
         "        # Formal HarborGate integration remains the middleware template default.",
     )
-    roots = re.compile(r"(?m)^([ \t]*(?:root|alias)[ \t]+)(?:/usr/share/truenas/webui|" + re.escape(RELEASE_ROOT + "/ui") + r")(?=[/;])")
+    roots = re.compile(
+        r"(?m)^([ \t]*(?:root|alias)[ \t]+)(?:/usr/share/truenas/webui|"
+        + re.escape(RELEASE_ROOT + "/ui") + r")(?=[/;])"
+    )
     text, count = roots.subn(lambda m: m[1] + RELEASE_ROOT + "/ui", text)
     if not count:
         raise ValueError("Expected the native or retained Demo WebUI root")
@@ -116,7 +122,9 @@ def render_nginx(text):
 
 def migration_files(source_service_text):
     """Return the explicit new-BE writes; the source BE/r4 stays immutable."""
-    original = "ExecStart=/usr/bin/python3 " + RELEASE_ROOT + "/deploy_photo_demo.py reconcile-nginx --release " + RELEASE
+    original = (
+        "ExecStart=/usr/bin/python3 " + RELEASE_ROOT + "/deploy_photo_demo.py reconcile-nginx --release " + RELEASE
+    )
     starts = re.findall(r"(?m)^ExecStart=.*$", source_service_text)
     if starts != [original]:
         raise ValueError("Unrecognized retained Demo nginx service")

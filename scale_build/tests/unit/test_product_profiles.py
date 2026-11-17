@@ -314,7 +314,9 @@ class ProductProfileTests(unittest.TestCase):
         for data in (test, formal):
             self.assertEqual(data['env']['HARBOROS_ARCHITECTURE'], 'amd64')
             self.assertEqual(data['jobs']['build-iso']['runs-on'], ['self-hosted', 'Linux', 'X64'])
-            self.assertTrue(any(step.get('uses') == 'actions/upload-artifact@v4' for step in data['jobs']['build-iso']['steps']))
+            self.assertTrue(any(
+                step.get('uses') == 'actions/upload-artifact@v4' for step in data['jobs']['build-iso']['steps']
+            ))
 
 
 if __name__ == '__main__':

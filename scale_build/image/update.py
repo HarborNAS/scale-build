@@ -23,7 +23,9 @@ from .bootstrap import umount_chroot_basedir
 from .manifest import build_manifest, build_release_manifest, get_version, update_file_path, update_file_checksum_path
 from .mtree import generate_mtree
 from .utils import run_in_chroot
-from ..product_profiles import verify_download, release_lock, strict_release_enabled, github_asset_request, verify_debian_component
+from ..product_profiles import (
+    verify_download, release_lock, strict_release_enabled, github_asset_request, verify_debian_component,
+)
 
 
 logger = logging.getLogger(__name__)

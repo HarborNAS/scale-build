@@ -51,12 +51,13 @@ location = /ui/sw.js {
 }
 }
 '''
-SERVICE = """[Unit]
+SERVICE = ("""[Unit]
 Description=Restore photo demo nginx overlay after middleware regeneration
 After=nginx.service harbor-gate-webui-edge.service
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 """ + compat.RELEASE_ROOT + "/deploy_photo_demo.py reconcile-nginx --release " + compat.RELEASE + "\n"
+ExecStart=/usr/bin/python3 """ + compat.RELEASE_ROOT
+           + "/deploy_photo_demo.py reconcile-nginx --release " + compat.RELEASE + "\n")
 
 
 class HarborDemoNginxTests(unittest.TestCase):
@@ -105,15 +106,17 @@ class HarborDemoNginxTests(unittest.TestCase):
                 with self.subTest(header=header, replacement=replacement), self.assertRaises(ValueError):
                     compat.render_nginx(NATIVE.replace(f'proxy_set_header {header} "";', replacement, 1))
         with self.assertRaises(ValueError):
-            compat.render_nginx(NATIVE.replace('proxy_set_header Authorization "";',
-                                             "proxy_set_header Authorization $http_authorization;", 1))
+            compat.render_nginx(NATIVE.replace(
+                'proxy_set_header Authorization "";', "proxy_set_header Authorization $http_authorization;", 1,
+            ))
 
     def test_rejects_unknown_private_proxies_and_route_shapes(self):
         for port in (4174, 4176, 8787):
             for path in ("/api/beacon", "/api/harbor-assistant", "/unexpected"):
                 for separator in (" ", "\n"):
                     with self.subTest(port=port, path=path, separator=separator), self.assertRaises(ValueError):
-                        compat.render_nginx(NATIVE + f"location {path} {{{separator}proxy_pass http://127.0.0.1:{port};{separator}}}\n")
+                        route = f"location {path} {{{separator}proxy_pass http://127.0.0.1:{port};{separator}}}\n"
+                        compat.render_nginx(NATIVE + route)
         for old, new in (("location = /api/harbor-beacon", "location /api/harbor-beacon"),
                          ("location ^~ /api/harbor-gate/", "location /api/harbor-gate/")):
             with self.subTest(new=new), self.assertRaises(ValueError):
@@ -123,6 +126,14 @@ class HarborDemoNginxTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             compat.render_nginx("upstream old_gate { server 127.0.0.1:8787; }\n" + NATIVE +
                                 "location /api/beacon { proxy_pass http://old_gate; }\n")
+        for quote in ('"', "'"):
+            for port in (4174, 4176, 8787):
+                with self.subTest(quote=quote, port=port), self.assertRaises(ValueError):
+                    route = f"location /unexpected {{ proxy_pass {quote}http://127.0.0.1:{port}{quote}; }}\n"
+                    compat.render_nginx(NATIVE + route)
+        with self.assertRaises(ValueError):
+            route = 'location /unexpected { set $marker "#"; proxy_pass http://127.0.0.1:8787; }\n'
+            compat.render_nginx(NATIVE + route)
 
     def test_migration_produces_only_reviewed_files_and_standalone_helper(self):
         files = compat.migration_files(SERVICE)
