@@ -124,6 +124,22 @@ download also matches its official same-release SHA512 checksum file. The
 subscreen digest binds the observed HTTPS release artifact with matching Debian
 identity; no independent producer provenance is claimed for this internal input.
 
+For dependencies fetched by the original SPDK, FreeIPA and OpenSSL build scripts,
+set both `HARBOROS_BUILD_DEPENDENCY_CACHE` and
+`HARBOROS_BUILD_DEPENDENCY_MANIFEST_SHA256` to an absolute cache directory and the
+reviewed `transport-manifest.json` SHA256. This optional path is disabled by
+default and applies only to the manifest's `allowed_packages`. It validates every
+cached file, Git origin/ref/tree and submodule object closure, then binds the cache
+read-only inside that package's chroot. Chroot-scoped transport accepts exact
+listed URLs, rejects missing or changed inputs without network fallback, and
+preserves the original fetch scripts and ordinary Git origin reads. APT and PyPI
+retain their existing network behavior. Preserve
+`logs/packages/<package>.dependency-relay-inputs.json` and
+`logs/packages/<package>.dependency-relay.jsonl` with the separate internal
+receipt. The SPDK branch tip, requested checkout commit and both gitlink sets are
+recorded separately; relay-only refs keep shallow cached objects reachable. These
+transport receipts do not change the release lock or candidate qualification.
+
 Quick lock validation, inside the build Python environment:
 
 ```sh
