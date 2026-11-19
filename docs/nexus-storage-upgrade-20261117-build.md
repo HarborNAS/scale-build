@@ -117,6 +117,13 @@ as downloads; a missing cache entry retains the original network behavior, while
 a symlink, invalid hash or invalid contract fails the build. Other public packages
 and APT inputs still use their normal network sources.
 
+The existing Caddy 2.10.0 and harboros-subscreen 1.0.0 release URLs and versions
+are unchanged. Their explicit manifest SHA256 values allow the same verified
+component cache to supply them when the builder cannot reach GitHub. Caddy's
+download also matches its official same-release SHA512 checksum file. The
+subscreen digest binds the observed HTTPS release artifact with matching Debian
+identity; no independent producer provenance is claimed for this internal input.
+
 Quick lock validation, inside the build Python environment:
 
 ```sh

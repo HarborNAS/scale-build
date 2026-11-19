@@ -773,6 +773,7 @@ external-packages:
     url_template: "https://assets.sys.truenas.net/debian-packages/{package}_{version}_{arch}.deb"
   caddy:
     deb_version: "2.10.0"
+    sha256: "03058143ee9b00998676a77c38da3f7d18a7efadb2673024bd48c674cb782bae"
     url_template: "https://github.com/caddyserver/caddy/releases/download/v{version}/caddy_{version}_linux_{arch}.deb"
     post_install_commands:
       - ["systemctl", "disable", "caddy"]
@@ -783,6 +784,7 @@ external-packages:
       - ["systemctl", "disable", "rwd"]
   harboros-subscreen:
     deb_version: "1.0.0"
+    sha256: "d8669b706ba841d7078280425f81250982a7a8c248adfcca560506955c2619f3"
     url_template: "https://github.com/HarborNAS/sub-screen/releases/download/v{version}/harboros-subscreen_{version}_linux_{arch}.deb"
   # harboros-beacon depend on harboros-ffmpeg
   harboros-ffmpeg:
