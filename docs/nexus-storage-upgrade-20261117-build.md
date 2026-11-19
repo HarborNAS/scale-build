@@ -34,6 +34,28 @@ Record the observed package-builder and final image-builder commits in the
 separate internal receipt below. Do not insert the eventual containing commit
 into a tracked file that would change that same commit.
 
+## Retained runtime OS dependencies
+
+The Nov 19 read-only process-mapping probe identified the active llama/whisper
+Vulkan loader as `libvulkan1:amd64` and the GPU drivers as
+`mesa-vulkan-drivers:amd64`. Both are explicit additional rootfs packages, with
+recommendations disabled; their mandatory dependencies remain installed by APT.
+The four frozen component packages do not declare these runtime dependencies.
+`python3-aiohttp` is already a runtime dependency of the pinned `middlewared`
+package, and the observed edge loads it from `/usr/lib/python3/dist-packages`.
+
+No observed mapped library came from `/opt` or `/usr/local`; all mapped `/usr`
+libraries had package ownership, and the unowned runtime libraries were under
+the retained Demo data-pool directory. This observation does not qualify dormant
+or not-yet-loaded optional code. Before installation, verify loader resolution
+and GPU-driver availability against the assembled candidate rootfs.
+
+These additions change the image manifest hash, not the frozen lock/epoch,
+source definitions or the five source-build receipt targets. Preserve the source
+relay's original manifest hash and separately record the final image manifest
+hash; verify that their source definitions match instead of relabeling the old
+relay inventory.
+
 ## Artifact-only build
 
 Use an isolated, owned Linux checkout/build directory with the usual root/chroot
@@ -73,7 +95,7 @@ Package work may start from `a7a09b2538e2d58d9a8238170bec3f031ac1dea4`
 with this candidate supplied as a separately hashed input. Preserve the original
 `logs/GITMANIFEST` and the actual package-builder commit/status as evidence.
 Before image assembly, install the reviewed, committed migration/nginx source
-changes, record the final HEAD, and confirm that the lock, manifest and package
+changes, record the final HEAD, and confirm that the lock, source definitions and package
 build logic are unchanged. If package-affecting inputs change, rebuild the
 affected packages rather than silently reusing their receipts. A different
 scale-build HEAD requires the corresponding Make-managed Python environment.
