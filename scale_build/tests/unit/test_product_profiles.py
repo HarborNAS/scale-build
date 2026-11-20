@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import runpy
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -41,6 +42,71 @@ def fixture():
 
 
 class ProductProfileTests(unittest.TestCase):
+    def test_standard_halfmoon_version_is_bound_to_the_locked_utc_epoch(self):
+        lock = fixture()
+        lock['system_version'] = '26.04.0-20261105-000000'
+        self.assertIs(validate_release_lock(lock), lock)
+
+    def test_legacy_nexus_candidates_remain_valid(self):
+        for version in ('26.04.0-NEXUS-RC1', '26.04.0-NEXUS-20261105.2'):
+            with self.subTest(version=version):
+                lock = fixture()
+                lock['system_version'] = version
+                self.assertIs(validate_release_lock(lock), lock)
+
+    def test_standard_system_versions_reject_mutable_invalid_or_mismatched_values(self):
+        for version in (
+            '26.04.0', '26.04.0-MASTER', '26.04.0-MASTER-20261105-000000',
+            '26.04.0-latest', '26.04.0-20261105', '26.04.0-20261105-00000',
+            '26.04.0-20261305-000000', '26.04.0-20260230-000000', '26.04.0-20261105-240000',
+            '26.04.0-20261105-000000-extra', '26.04.0-20261105-000001', '26.04.0-20261104-000000',
+            '26.04.1-20261105-000000', '26.04.0-20261105-000000\n',
+        ):
+            with self.subTest(version=version):
+                lock = fixture()
+                lock['system_version'] = version
+                with self.assertRaises(CallError):
+                    validate_release_lock(lock)
+
+    def test_standard_version_keeps_epoch_commit_and_artifact_hash_gates(self):
+        for mutate in (
+            lambda lock: lock.update(source_date_epoch=0),
+            lambda lock: lock.update(source_date_epoch=True),
+            lambda lock: lock.update(source_date_epoch=10 ** 30),
+            lambda lock: lock['components']['middleware'].update(commit='main'),
+            lambda lock: lock['packages']['harboros-beacon'].update(sha256='unknown'),
+            lambda lock: lock['packages']['harboros-im-gate'].update(source_commit='c' * 40),
+        ):
+            lock = fixture()
+            lock['system_version'] = '26.04.0-20261105-000000'
+            mutate(lock)
+            with self.assertRaises(CallError):
+                validate_release_lock(lock)
+        lock = fixture()
+        lock['system_version'] = '26.04.0-20261105-000000'
+        with patch.dict(os.environ, {'SOURCE_DATE_EPOCH': str(lock['source_date_epoch'] + 1)}):
+            with self.assertRaises(CallError):
+                validate_release_lock(lock)
+
+    def test_standard_locked_version_controls_config_and_rejects_overrides(self):
+        lock = fixture()
+        lock['system_version'] = '26.04.0-20261105-000000'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'release.json'
+            path.write_text(json.dumps(lock), encoding='utf-8')
+            environment = {
+                'HARBOROS_PRODUCT': 'nexus', 'HARBOROS_ARCHITECTURE': 'amd64',
+                'HARBOROS_RELEASE_MANIFEST': str(path), 'TRUENAS_VERSION': lock['system_version'],
+                'SOURCE_DATE_EPOCH': str(lock['source_date_epoch']),
+            }
+            with patch.dict(os.environ, environment), patch('time.time', side_effect=AssertionError('wall clock')):
+                config = runpy.run_path(str(Path(__file__).parents[2] / 'config.py'))
+                self.assertEqual(config['VERSION'], lock['system_version'])
+                self.assertEqual(config['BUILD_TIME'], lock['source_date_epoch'])
+                with patch.dict(os.environ, {'TRUENAS_VERSION': '26.04.0-20261105-000001'}):
+                    with self.assertRaisesRegex(CallError, 'TRUENAS_VERSION differs'):
+                        runpy.run_path(str(Path(__file__).parents[2] / 'config.py'))
+
     def test_correct_canonical_repositories_and_versions_reach_manifest(self):
         lock = fixture()
         with tempfile.TemporaryDirectory() as folder:
@@ -248,7 +314,9 @@ class ProductProfileTests(unittest.TestCase):
         for data in (test, formal):
             self.assertEqual(data['env']['HARBOROS_ARCHITECTURE'], 'amd64')
             self.assertEqual(data['jobs']['build-iso']['runs-on'], ['self-hosted', 'Linux', 'X64'])
-            self.assertTrue(any(step.get('uses') == 'actions/upload-artifact@v4' for step in data['jobs']['build-iso']['steps']))
+            self.assertTrue(any(
+                step.get('uses') == 'actions/upload-artifact@v4' for step in data['jobs']['build-iso']['steps']
+            ))
 
 
 if __name__ == '__main__':

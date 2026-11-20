@@ -1,6 +1,7 @@
 """Product and immutable component inputs for the Nexus appliance release lane."""
 from __future__ import annotations
 import copy
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -58,9 +59,17 @@ def validate_release_lock(lock: dict) -> dict:
     if not isinstance(lock, dict) or lock.get("schema_version") != 1 or lock.get(
             "product") != "nexus" or lock.get("architecture") != "amd64":
         raise CallError("Expected a Nexus/amd64 release manifest, schema_version 1")
-    if not re.fullmatch(r"26\.04\.0-NEXUS-[0-9A-Za-z.-]+", str(lock.get("system_version", ""))):
-        raise CallError("Nexus lock requires the immutable Halfmoon system version")
-    source_date_epoch(lock)
+    epoch = source_date_epoch(lock)
+    version = str(lock.get("system_version", ""))
+    if not re.fullmatch(r"26\.04\.0-NEXUS-[0-9A-Za-z.-]+", version):
+        # Numeric release versions pass the existing appliance upgrade policy.
+        # Bind their timestamp to the reviewed epoch; retain old Nexus locks.
+        try:
+            expected = datetime.fromtimestamp(epoch, timezone.utc).strftime('26.04.0-%Y%m%d-%H%M%S')
+        except (OverflowError, OSError, ValueError) as error:
+            raise CallError('Nexus lock source_date_epoch is outside the supported timestamp range') from error
+        if version != expected:
+            raise CallError('Nexus lock requires a Halfmoon system version matching its immutable UTC build epoch')
     components = lock.get("components", {})
     for name in ("beacon", "gate", "webui", "middleware", "harborlink", "runtime"):
         item = components.get(name, {})

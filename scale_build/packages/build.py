@@ -14,6 +14,9 @@ from scale_build.utils.environment import APT_ENV
 from scale_build.utils.manifest import get_truenas_train, get_release_code_name, get_secret_env, get_manifest
 from scale_build.utils.run import run
 from scale_build.utils.paths import PKG_DIR
+from scale_build.utils.paths import PKG_LOG_DIR
+
+from . import dependency_relay
 
 
 def package_version_timestamp():
@@ -82,6 +85,7 @@ class BuildPackageMixin:
         secrets = get_secret_env()
         for k in filter(lambda k: k in secrets, self.secret_env):
             env[k] = secrets[k]
+        env.update(dependency_relay.environment(self.name))
         return env
 
     def _get_debian_info(self):
@@ -217,6 +221,7 @@ class BuildPackageMixin:
         with open(self.pkglist_hash_file_path, 'w') as f:
             f.write('\n'.join(built_packages))
 
+        dependency_relay.save_audit(self.name, self.dpkg_overlay, PKG_LOG_DIR)
         with open(self.hash_path, 'w') as f:
             f.write(self.source_hash)
 

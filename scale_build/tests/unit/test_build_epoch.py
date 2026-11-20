@@ -49,6 +49,7 @@ class LockedEpochTests(unittest.TestCase):
                     first = build.package_version_timestamp()
                     second = build.package_version_timestamp()
                 builder = build.BuildPackageMixin()
+                builder.name = 'fixture'
                 builder.secret_env = []
                 with patch('scale_build.packages.build.get_secret_env', return_value={'PRIVATE': 'not recorded'}):
                     self.assertEqual(builder._get_chroot_env()['SOURCE_DATE_EPOCH'], str(lock['source_date_epoch']))

@@ -4,6 +4,7 @@ import logging
 import os
 import platform
 from pathlib import Path
+import re
 import requests
 import shutil
 import stat
@@ -22,7 +23,9 @@ from .bootstrap import umount_chroot_basedir
 from .manifest import build_manifest, build_release_manifest, get_version, update_file_path, update_file_checksum_path
 from .mtree import generate_mtree
 from .utils import run_in_chroot
-from ..product_profiles import verify_download, release_lock, strict_release_enabled, github_asset_request, verify_debian_component
+from ..product_profiles import (
+    verify_download, release_lock, strict_release_enabled, github_asset_request, verify_debian_component,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -211,29 +214,53 @@ def download_and_install_deb_package(
     # Create a temporary directory for the download
     with tempfile.TemporaryDirectory() as tmpdir:
         deb_path = os.path.join(tmpdir, deb_filename)
-
-        logger.info(f'Downloading {package_name} from {download_url}')
-
-        # Download the package using requests
-        for retry in range(5):
+        cache_hit = False
+        cache_dir = os.environ.get('HARBOROS_COMPONENT_CACHE')
+        if cache_dir and expected_sha256:
+            if not re.fullmatch(r'[0-9a-f]{64}', str(expected_sha256)):
+                raise CallError('Component cache requires a pinned SHA256')
+            if Path(deb_filename).name != deb_filename:
+                raise CallError('Component cache requires a basename filename')
+            cached = Path(cache_dir) / deb_filename
+            if Path(cache_dir).is_symlink():
+                raise CallError('Component cache directory must not be a symlink')
             try:
-                asset_url, asset_headers = github_asset_request(download_url, requests.get)
-                response = requests.get(asset_url, headers=asset_headers, stream=True, timeout=60, allow_redirects=True)
-                response.raise_for_status()
+                cached_stat = cached.lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                if not stat.S_ISREG(cached_stat.st_mode):
+                    raise CallError('Component cache entry must be a regular file')
+                flags = os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0)
+                with os.fdopen(os.open(cached, flags), 'rb') as source:
+                    if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+                        raise CallError('Component cache entry must be a regular file')
+                    with open(deb_path, 'wb') as destination:
+                        shutil.copyfileobj(source, destination)
+                cache_hit = True
+                logger.info('Using cached component %s', package_name)
 
-                # Write the content to file in chunks to handle large files efficiently
-                with open(deb_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        if chunk:  # Filter out keep-alive chunks
-                            f.write(chunk)
+        if not cache_hit:
+            logger.info(f'Downloading {package_name} from {download_url}')
+            for retry in range(5):
+                try:
+                    asset_url, asset_headers = github_asset_request(download_url, requests.get)
+                    response = requests.get(
+                        asset_url, headers=asset_headers, stream=True, timeout=60, allow_redirects=True)
+                    response.raise_for_status()
 
-                break
-            except requests.exceptions.RequestException as e:
-                logger.error(f'Failed to download {package_name}: {e}')
-                if retry == 4:
-                    raise RuntimeError(f'Failed to download {package_name} from {download_url}: {e}') from None
-                else:
-                    time.sleep(10)
+                    with open(deb_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if chunk:  # Filter out keep-alive chunks
+                                f.write(chunk)
+
+                    break
+                except requests.exceptions.RequestException as e:
+                    logger.error(f'Failed to download {package_name}: {e}')
+                    if retry == 4:
+                        raise RuntimeError(f'Failed to download {package_name} from {download_url}: {e}') from None
+                    else:
+                        time.sleep(10)
 
         # Verify the downloaded file exists and has content
         if not os.path.exists(deb_path) or os.path.getsize(deb_path) == 0:

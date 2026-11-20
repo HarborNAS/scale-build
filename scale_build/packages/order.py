@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def update_package_changes(packages):
     changed = False
     for package in filter(lambda i: i.hash_changed or i.parent_changed, packages.values()):
-        for child in filter(lambda c: not packages[c].parent_changed, package.children):
+        for child in filter(lambda c: c in packages and not packages[c].parent_changed, package.children):
             packages[child].parent_changed = True
             changed = True
     if changed:
@@ -38,11 +38,18 @@ def get_initialized_packages(desired_packages=None):
             packages[dep].children.add(pkg_name)
 
     if desired_packages:
-        for pkg_name, package in filter(
-            lambda i: i[1].name in desired_packages or any(desired in i[1].children for desired in desired_packages),
-            packages.items()
-        ):
-            package.force_build = pkg_name in desired_packages or package.hash_changed
+        required = set(desired_packages)
+        while True:
+            ancestors = {name for name, package in packages.items() if package.children & required} - required
+            if not ancestors:
+                break
+            required.update(ancestors)
+        selected = {name: package for name, package in packages.items() if name in required}
+        # A changed ancestor can invalidate a cached dependent without changing
+        # its own source hash. Propagate only within this requested build graph.
+        update_package_changes(selected)
+        for pkg_name, package in selected.items():
+            package.force_build = pkg_name in desired_packages or package.rebuild
     else:
         update_package_changes(packages)
 
