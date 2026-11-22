@@ -167,6 +167,11 @@ def install_native_configuration(migration, defaults, mounts):
         removed.append(relative)
         for key, entry in migration.before.items():
             if key == relative or key.startswith(relative + "/"):
+                # Cross-dataset shutil.move uses copy2, which drops numeric ownership.
+                path = _safe_path(root, BACKUP + "/" + key)
+                os.lchown(path, entry.uid, entry.gid)
+                if entry.kind != "link":
+                    path.chmod(entry.mode)
                 expected[BACKUP + "/" + key] = entry
                 if entry.kind == "link":
                     migration.allowed_links[BACKUP + "/" + key] = (entry.content,)
