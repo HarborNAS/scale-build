@@ -61,6 +61,10 @@ RECEIPT_PATH = "var/lib/harboros-upgrade/state-migration.json"
 NGINX_WATCHER = "etc/systemd/system/harbor-photo-demo-nginx.service"
 NGINX_HELPER = "usr/local/libexec/harbor-demo-nginx-compat.py"
 NGINX_DROPIN = "etc/systemd/system/nginx.service.d/40-harbor-demo-compat.conf"
+NATIVE_MODE = "native-packages-v1"
+NATIVE_SOURCE_PATHS = (
+    "var/lib/harborgate", "etc/harboros/service-auth", NGINX_HELPER, NGINX_DROPIN,
+)
 
 
 @dataclass(frozen=True)
@@ -218,14 +222,14 @@ def require_quiescent(run):
 
 
 class HarborStateMigration:
-    def __init__(self, old_root, old_dataset, paths, allowed_links, run, mounts):
+    def __init__(self, old_root, old_dataset, paths, allowed_links, run, mounts, *, service_migration=None):
         self.old_root = Path(old_root)
         self.old_dataset = old_dataset
         self.paths = tuple(paths)
         self.parents = ("mnt/software",) if any(path in self.paths for path in BE_MNT_PATHS) else ()
         if OPS_ROOT in self.paths:
             self.parents += ("mnt/software/harbor-apps",)
-        self.allowed_links = allowed_links
+        self.allowed_links = dict(allowed_links)
         self.run = run
         validate_mounts(self.old_root, old_dataset, self.paths + CLONED_PATHS, mounts)
         self.before = inventory(self.old_root, self.paths + CLONED_PATHS, allowed_links, self.parents)
@@ -234,6 +238,10 @@ class HarborStateMigration:
         self.target_overrides = {}
         self.extra_target_paths = ()
         self.compatibility_mode = None
+        self.service_migration = service_migration
+        self.target_removed = ()
+        self.state_relocations = {}
+        self.external_access_requirements = []
 
     def copy(self, new_root, new_dataset, mounts):
         validate_roots(self.old_root, new_root)
@@ -243,6 +251,10 @@ class HarborStateMigration:
         validate_mounts(self.new_root, new_dataset, self.paths + CLONED_PATHS, mounts)
         # Check destination paths before invoking rsync; never write through links.
         inventory(self.new_root, self.paths, self.allowed_links, self.parents)
+        native_defaults = None
+        if self.service_migration == NATIVE_MODE:
+            from .harbor_native import snapshot_native_defaults
+            native_defaults = snapshot_native_defaults(self.new_root)
         for relative in self.paths:
             if relative not in self.before:
                 # New-image defaults must not enable a service disabled in the old BE.
@@ -273,10 +285,15 @@ class HarborStateMigration:
             if hasattr(os, "chown"):
                 os.chown(path, entry.uid, entry.gid)
             path.chmod(entry.mode)
+        if native_defaults is not None:
+            from .harbor_native import install_native_configuration
+            install_native_configuration(self, native_defaults, mounts)
         self.verify(mounts, data_permissions_restricted=False)
 
     def install_nginx_compatibility(self, mounts):
         """Apply only the reviewed new-BE watcher transformation, preserving its old-BE original."""
+        if self.service_migration == NATIVE_MODE:
+            return
         if NGINX_WATCHER not in self.before:
             return
         from .harbor_demo_nginx import MODE, migration_files
@@ -327,6 +344,9 @@ class HarborStateMigration:
         if current != self.before:
             raise HarborMigrationError("Source Harbor state changed during upgrade; keep writers stopped")
         expected = dict(self.before)
+        for relative in self.target_removed:
+            expected = {key: value for key, value in expected.items()
+                        if key != relative and not key.startswith(relative + "/")}
         expected.update(self.target_overrides)
         if data_permissions_restricted:
             for relative, entry in expected.items():
@@ -359,6 +379,9 @@ class HarborStateMigration:
             "transformed_target_paths": list(self.target_overrides),
             "extra_target_paths": list(self.extra_target_paths),
             "compatibility_mode": self.compatibility_mode,
+            "removed_target_paths": list(self.target_removed),
+            "state_relocations": self.state_relocations,
+            "external_access_requirements": self.external_access_requirements,
             "source": {key: asdict(value) for key, value in self.before.items()},
             "target": {key: asdict(value) for key, value in actual.items()},
         }
@@ -368,12 +391,18 @@ class HarborStateMigration:
             os.fsync(stream.fileno())
 
 
-def prepare_harbor_migration(old_root, old_dataset, run, mounts, *, bootfs=None):
+def prepare_harbor_migration(old_root, old_dataset, run, mounts, *, bootfs=None, service_migration=None):
     if old_root is None:
         return None
-    paths = tuple(path for path in STATE_PATHS + CONFIG_PATHS + BE_MNT_PATHS
+    if service_migration not in (None, NATIVE_MODE):
+        raise HarborMigrationError("Unsupported Harbor service migration policy")
+    extra = NATIVE_SOURCE_PATHS if service_migration == NATIVE_MODE else ()
+    paths = tuple(path for path in STATE_PATHS + CONFIG_PATHS + BE_MNT_PATHS + extra
                   if os.path.lexists(_safe_path(old_root, path)))
-    if not any(os.path.lexists(_safe_path(old_root, path)) for path in STATE_PATHS):
+    state_paths = STATE_PATHS
+    if service_migration == NATIVE_MODE:
+        state_paths += ("var/lib/harborgate", "data/sessions", "data/_setup_portal.json")
+    if not any(os.path.lexists(_safe_path(old_root, path)) for path in state_paths):
         return None
     # Live upgrade only: an offline BE cannot prove the active writers are stopped.
     if Path(old_root).resolve() != Path("/"):
@@ -381,4 +410,5 @@ def prepare_harbor_migration(old_root, old_dataset, run, mounts, *, bootfs=None)
     if bootfs != old_dataset:
         raise HarborMigrationError("Active Harbor boot environment differs from the selected bootfs")
     require_quiescent(run)
-    return HarborStateMigration(old_root, old_dataset, paths + ENABLEMENT_PATHS, ALLOWED_LINKS, run, mounts)
+    return HarborStateMigration(old_root, old_dataset, paths + ENABLEMENT_PATHS, ALLOWED_LINKS, run, mounts,
+                                service_migration=service_migration)

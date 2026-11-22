@@ -5,6 +5,61 @@ when the native `.update` installer creates a new boot environment (BE). It is
 not an in-place middleware override. Fresh installs and systems without Harbor
 state retain the existing installer behavior.
 
+## Native package upgrade policy
+
+A new immutable Nexus lock can select
+`scope.service_migration = "native-packages-v1"`. The image builder carries this
+policy into the update manifest; it does not change historical locks. Without
+this opt-in, the retained Demo compatibility path below remains in effect.
+
+The native policy saves the new image's packaged Beacon/Gate units before
+copying stopped source state. Only in the new BE, it archives the old units,
+their drop-ins, enablement links and four legacy environment files under
+`/var/lib/harboros-upgrade/native-legacy-config` (private parent mode `0700`).
+The original BE is untouched. The new BE restores the exact package units and
+enables `/usr/bin/harboros-beacon` and `/usr/bin/harboros-im-gate`; the old Python
+edge, nginx watcher/path and compatibility drop-in are not active.
+
+Business/model configuration is extracted from the old units and reviewed
+`/etc/default` files without executing shell input. Native unit environment
+values take precedence: product/runtime profiles, loopback bindings, state
+directories, southbound mode and credential paths cannot be replaced by old
+Demo values. Legacy directional service tokens and credential-path overrides are
+archived rather than placed in the active environment. Gate's first-boot
+credential recovery and Beacon's model-token helper prepare the native
+credentials. The existing private model API token is retained for saved model
+clients, subject to the package helper's directional-token isolation check.
+Feishu configuration and mail credentials remain private in the
+new Gate environment. The old edge workspace ID becomes Gate's authoritative
+workspace ID when no explicit Gate workspace exists, preserving the existing
+Beacon state scope.
+
+Gate's sessions, media, setup portal and `/var/lib/harborgate` mail-token state
+are also copied into `/var/lib/harboros-im-gate`, the native sandbox's writable
+root. Conflicting existing Gate files fail the migration rather than selecting
+one silently. The native `/data` clones remain intact for old references.
+Beacon's copied state and boot-BE knowledge/model tree keep their bytes and
+paths, with new-BE ownership changed to the packaged `harborbeacon` account.
+Independent data-pool models and binaries are never chowned or copied by this
+policy. External `/mnt/...` configuration references found in the retained
+Beacon environment and administration state are recorded in the receipt as
+`external_access_requirements`, with the target account/UID/GID and status
+`pending_target_permission_migration`. No external ACLs are changed. Their
+parent traversal and read/write/execute access require a separate, explicit
+application-directory permission migration and actual post-boot acceptance;
+NAS SMB data permissions are outside this conversion.
+
+The existing pre-activation receipt records archived originals, removed target
+paths, state relocations, new target hashes/owners and the native policy. Both
+the stopped source and the transformed target must still match that plan
+before bootfs selection. This source change is not evidence that a real
+upgrade, restart or rollback has passed.
+
+Fresh installation (`old_root=None`) does not import Demo units, environment,
+state or credentials. It uses the package units and device credential helpers
+at first boot. Model weights and data-pool business configuration are separate
+from the OS image; fresh boot does not imply those AI resources are provisioned.
+
 ## Copy and verification boundary
 
 The migration copies only these existing source paths into the new BE:

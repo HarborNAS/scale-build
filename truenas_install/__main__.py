@@ -335,6 +335,7 @@ def main():
     # Any failure below leaves the old BE untouched and prevents bootfs activation.
     harbor_migration = prepare_harbor_migration(
         old_root, old_root_dataset, run_command, list(getmntinfo()), bootfs=old_bootfs_prop,
+        service_migration=manifest.get("harboros", {}).get("service_migration"),
     )
 
     write_progress(0, "Creating dataset")
