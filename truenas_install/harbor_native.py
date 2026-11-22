@@ -14,6 +14,14 @@ from .harbor_state import (
 
 BACKUP = "var/lib/harboros-upgrade/native-legacy-config"
 GATE_ROOT = "var/lib/harboros-im-gate"
+GATE_WRITABLE_PATHS = {
+    "IM_AGENT_DATA_DIR": "/" + GATE_ROOT + "/sessions",
+    "IM_AGENT_STATE_DIR": "/" + GATE_ROOT,
+    "HARBORGATE_DEVICE_SESSION_STATE_DIR": "/" + GATE_ROOT + "/device-sessions",
+    "WEIXIN_STATE_DIR": "/" + GATE_ROOT + "/weixin",
+    "FEISHU_MAIL_TOKEN_STATE_PATH": "/" + GATE_ROOT + "/feishu-mail-token.json",
+    "FEISHU_SETUP_PORTAL_PATH": "/" + GATE_ROOT + "/_setup_portal.json",
+}
 CORE = ("harboros-beacon.service", "harboros-im-gate.service")
 RETIRED = ("harbor-gate-webui-edge.service", "harbor-photo-demo-nginx.service", "harbor-photo-demo-nginx.path")
 ENV_FILES = tuple(path for path in CONFIG_PATHS if path.startswith("etc/default/"))
@@ -200,8 +208,18 @@ def install_native_configuration(migration, defaults, mounts):
                           HARBOR_MODEL_API_BASE_URL="http://127.0.0.1:4174/api/inference/v1",
                           HARBOR_SEMANTIC_ROUTER_TOPOLOGY="embedded", HARBOR_SEMANTIC_ROUTER_LOCAL_ONLY="1")
         else:
-            values.update(FEISHU_SETUP_PORTAL_PATH="/" + GATE_ROOT + "/_setup_portal.json",
-                          HARBORBEACON_TURN_ENDPOINT="/api/web/turns", HARBORGATE_FFMPEG_BIN="/usr/bin/ffmpeg")
+            # Config.rs owns exactly these writable paths. Media paths are
+            # derived from state_dir; FEISHU_WEBHOOK_PATH is an HTTP route.
+            for key in retained:
+                if (key.endswith(("_DIR", "_FILE", "_PATH"))
+                        and key not in GATE_WRITABLE_PATHS and key != "FEISHU_WEBHOOK_PATH"):
+                    raise HarborMigrationError("Unreviewed Gate writable environment path")
+            values.update(GATE_WRITABLE_PATHS)
+            migration.environment_path_relocations = {
+                key: {"source": old.get(key), "target": value}
+                for key, value in GATE_WRITABLE_PATHS.items()
+            }
+            values.update(HARBORBEACON_TURN_ENDPOINT="/api/web/turns", HARBORGATE_FFMPEG_BIN="/usr/bin/ffmpeg")
             if not values.get("HARBOR_WORKSPACE_ID"):
                 edge = _file_environment(_safe_path(migration.old_root, "etc/default/harbor-gate-webui-edge"))
                 if edge.get("HARBOR_EDGE_WORKSPACE_ID"):

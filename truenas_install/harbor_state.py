@@ -242,6 +242,7 @@ class HarborStateMigration:
         self.target_removed = ()
         self.state_relocations = {}
         self.external_access_requirements = []
+        self.environment_path_relocations = {}
 
     def copy(self, new_root, new_dataset, mounts):
         validate_roots(self.old_root, new_root)
@@ -382,6 +383,7 @@ class HarborStateMigration:
             "removed_target_paths": list(self.target_removed),
             "state_relocations": self.state_relocations,
             "external_access_requirements": self.external_access_requirements,
+            "environment_path_relocations": self.environment_path_relocations,
             "source": {key: asdict(value) for key, value in self.before.items()},
             "target": {key: asdict(value) for key, value in actual.items()},
         }

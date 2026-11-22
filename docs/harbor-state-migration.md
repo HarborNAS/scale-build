@@ -36,7 +36,11 @@ Beacon state scope.
 
 Gate's sessions, media, setup portal and `/var/lib/harborgate` mail-token state
 are also copied into `/var/lib/harboros-im-gate`, the native sandbox's writable
-root. Conflicting existing Gate files fail the migration rather than selecting
+root. All six Gate-owned writable environment paths are explicitly set to this
+root, with their original/new values recorded as `environment_path_relocations`.
+Unknown writable Feishu/Weixin path overrides fail closed; the Feishu webhook
+path remains an HTTP route. Conflicting existing Gate files fail the migration
+rather than selecting
 one silently. The native `/data` clones remain intact for old references.
 Beacon's copied state and boot-BE knowledge/model tree keep their bytes and
 paths, with new-BE ownership changed to the packaged `harborbeacon` account.
