@@ -3,6 +3,9 @@ import shutil
 
 from scale_build.utils.run import run
 from scale_build.utils.paths import CCACHE_DIR, TMP_DIR, TMPFS
+from scale_build.utils.paths import PKG_LOG_DIR
+
+from . import dependency_relay
 
 
 class OverlayMixin:
@@ -62,6 +65,8 @@ class OverlayMixin:
                 os.makedirs(path, exist_ok=True)
 
             run(command, exception_msg=msg)
+
+        dependency_relay.prepare(self.name, self.dpkg_overlay, PKG_LOG_DIR, run)
 
     def delete_overlayfs(self):
         for command in (

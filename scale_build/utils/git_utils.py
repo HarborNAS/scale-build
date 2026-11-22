@@ -17,7 +17,7 @@ def update_git_manifest(git_remote, git_sha, mode='a+'):
 def retrieve_git_remote_and_sha(path):
     return {
         'url': get_origin_uri(path),
-        'sha': run(['git', '-C', path, 'rev-parse', '--short', 'HEAD'], log=False).stdout.strip(),
+        'sha': run(['git', '-C', path, 'rev-parse', 'HEAD'], log=False).stdout.strip(),
     }
 
 

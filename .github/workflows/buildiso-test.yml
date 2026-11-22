@@ -1,91 +1,139 @@
 name: build test iso
 
-on:
+'on':
   workflow_dispatch:
     inputs:
       webui:
-        description: "webui branch"
+        description: WebUI branch
         required: true
-        default: "master"
+        default: develop
         type: string
       middleware:
-        description: "middleware branch"
+        description: middleware branch
         required: true
-        default: "master"
+        default: develop
         type: string
       trainSuffix:
-        description: "train suffix"
+        description: test train suffix
         required: true
-        default: "-Nightlies"
+        default: -Nightlies
         type: choice
-        options:
-          - -Nightlies
-          - -RC
-          - -BETA
+        options: [-Nightlies, -RC, -BETA]
       releaseUpdate:
-        description: "after releasing, developers can perform an OTA update"
+        description: update the test OTA index after upload
         required: true
         default: true
         type: boolean
-
+      strictRelease:
+        description: use reviewed immutable candidate inputs
+        required: false
+        default: false
+        type: boolean
+      releaseManifest:
+        description: repository-relative manifest for strict mode
+        required: false
+        default: ''
+        type: string
+permissions:
+  contents: read
+env:
+  HARBOROS_PRODUCT: nexus
+  HARBOROS_ARCHITECTURE: amd64
+  HARBOROS_STRICT_RELEASE: ${{ inputs.strictRelease }}
+  HARBOROS_RELEASE_MANIFEST: ${{ inputs.releaseManifest != '' && format('{0}/{1}', github.workspace, inputs.releaseManifest) || '' }}
 jobs:
   build-iso:
-    runs-on: [self-hosted]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 240
     steps:
-      - name: Checkout code
+      - name: Checkout build system
         uses: actions/checkout@v4
         with:
           clean: false
-      - name: set version
+      - name: Install build dependencies
+        run: sudo apt install -y build-essential debootstrap git python3-pip python3-venv python3-yaml squashfs-tools unzip libjson-perl rsync libarchive-tools
+      - name: Validate inputs and set version
         id: set-version
+        env:
+          STRICT_RELEASE: ${{ inputs.strictRelease }}
+          RELEASE_MANIFEST: ${{ inputs.releaseManifest }}
         run: |
-          _VERS="26.04.0-MASTER"
-          VERSION="${_VERS}-$(date +%Y%m%d-%H%M%S)"
-          # example, 26.04.0-MASTER-20251003-213627
-          echo "HarborNAS_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-
-          CODE_NAME=$(yq -r '.code_name' conf/build.manifest)
-          TRAIN="TrueNAS-SCALE-${CODE_NAME}${{inputs.trainSuffix}}"
-          echo "TRUENAS_TRAIN=$TRAIN" >> "$GITHUB_OUTPUT"
-      - name: install packages
+          set -euo pipefail
+          if [ "$STRICT_RELEASE" = "true" ]; then
+            test -n "$RELEASE_MANIFEST"
+            VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["system_version"])' "$GITHUB_WORKSPACE/$RELEASE_MANIFEST")"
+            EPOCH="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["source_date_epoch"])' "$GITHUB_WORKSPACE/$RELEASE_MANIFEST")"
+          else
+            VERSION="26.04.0-MASTER-$(date -u +%Y%m%d-%H%M%S)"
+            EPOCH=""
+          fi
+          CODE_NAME="$(python3 -c 'import yaml; print(yaml.safe_load(open("conf/build.manifest", encoding="utf-8"))["code_name"])')"
+          {
+            echo "HarborNAS_VERSION=$VERSION"
+            echo "TRUENAS_TRAIN=TrueNAS-SCALE-${CODE_NAME}${{ inputs.trainSuffix }}"
+            echo "SOURCE_DATE_EPOCH=$EPOCH"
+          } >> "$GITHUB_OUTPUT"
+      - name: Checkout component sources
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
+          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
+          TRUENAS_VENDOR: HarborOS
         run: |
-          sudo apt install -y build-essential debootstrap git python3-pip python3-venv squashfs-tools unzip libjson-perl rsync libarchive-tools
-      - name: update to latest sources
-        run: |
-          sudo truenas_webui_OVERRIDE=${{ inputs.webui }} truenas_OVERRIDE=${{ inputs.middleware }} make checkout
-      - name: Builds all the *.deb packages
-        run: |
-          sudo TRUENAS_VENDOR=HarborOS TRUENAS_VERSION=${{steps.set-version.outputs.HarborNAS_VERSION}} make packages
-      - name: Builds the stand-alone update file
-        run: |
-          sudo make update
-      - name: Builds the ISO image
-        run: |
-          sudo TRUENAS_VENDOR=HarborOS make iso
-      - name: upload iso
+          sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR truenas_webui_OVERRIDE='${{ inputs.webui }}' truenas_OVERRIDE='${{ inputs.middleware }}' make checkout
+      - name: Build Debian components
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
+          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
+          TRUENAS_VENDOR: HarborOS
+        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make packages
+      - name: Build update
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
+          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
+          TRUENAS_VENDOR: HarborOS
+          HARBOROS_COMPONENT_READ_TOKEN: ${{ secrets.COMPONENT_RELEASE_READ_TOKEN }}
+        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,HARBOROS_COMPONENT_READ_TOKEN,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make update
+      - name: Build ISO
+        env:
+          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
+          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
+          TRUENAS_VENDOR: HarborOS
+        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make iso
+      - name: Save test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: harboros-test-${{ steps.set-version.outputs.HarborNAS_VERSION }}
+          path: |
+            tmp/release/
+            logs/GITMANIFEST
+            ${{ inputs.releaseManifest }}
+          if-no-files-found: error
+      - name: Upload test ISO and update
         env:
           QCLOUD_ACCESS_KEY_ID: ${{ secrets.QCLOUD_SECRETID }}
           QCLOUD_SECRET_ACCESS_KEY: ${{ secrets.QCLOUD_SECRETKEY }}
-          TRUENAS_VERSION: ${{steps.set-version.outputs.HarborNAS_VERSION}}
-          TRUENAS_TRAIN: ${{steps.set-version.outputs.TRUENAS_TRAIN}}
+          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
         run: |
-          isoFileName="TrueNAS-SCALE-${TRUENAS_VERSION}-HarborOS"
-          updateFileName="TrueNAS-SCALE-${TRUENAS_VERSION}"
-          destIsoFileName="HarborOS-${TRUENAS_VERSION}"
-          destUpdateFileName="HarborOS-${TRUENAS_VERSION}"
+          set -euo pipefail
+          isoFileName="TrueNAS-SCALE-${TRUENAS_VERSION}-HarborOS"; updateFileName="TrueNAS-SCALE-${TRUENAS_VERSION}"
+          coscli config add -b harboros-1317635745 -r ap-guangzhou -a willow --init-skip || true
+          for ext in iso iso.sha256; do coscli cp --secret-id "$QCLOUD_ACCESS_KEY_ID" --secret-key "$QCLOUD_SECRET_ACCESS_KEY" "./tmp/release/${isoFileName}.${ext}" "cos://willow/test/HarborOS-${TRUENAS_VERSION}.${ext}"; done
+          for ext in update update.sha256; do coscli cp --secret-id "$QCLOUD_ACCESS_KEY_ID" --secret-key "$QCLOUD_SECRET_ACCESS_KEY" "./tmp/release/${updateFileName}.${ext}" "cos://willow/test/HarborOS-${TRUENAS_VERSION}.${ext}"; done
+      - name: Update test OTA index
           R2_ENDPOINT="https://b001991453068c59d8f4aa512bc0b16a.r2.cloudflarestorage.com"
           R2_BUCKET="harboros-update"
-          coscli config add -b harboros-1317635745 -r ap-guangzhou -a willow --init-skip || true
-          coscli cp --secret-id $QCLOUD_ACCESS_KEY_ID --secret-key $QCLOUD_SECRET_ACCESS_KEY "./tmp/release/${isoFileName}.iso" "cos://willow/test/${destIsoFileName}.iso"
-          coscli cp --secret-id $QCLOUD_ACCESS_KEY_ID --secret-key $QCLOUD_SECRET_ACCESS_KEY "./tmp/release/${isoFileName}.iso.sha256" "cos://willow/test/${destIsoFileName}.iso.sha256"
-          coscli cp --secret-id $QCLOUD_ACCESS_KEY_ID --secret-key $QCLOUD_SECRET_ACCESS_KEY "./tmp/release/${updateFileName}.update" "cos://willow/test/${destUpdateFileName}.update"
-          coscli cp --secret-id $QCLOUD_ACCESS_KEY_ID --secret-key $QCLOUD_SECRET_ACCESS_KEY "./tmp/release/${updateFileName}.update.sha256" "cos://willow/test/${destUpdateFileName}.update.sha256"
-          /usr/local/bin/aws s3api put-object --endpoint-url ${R2_ENDPOINT} --bucket ${R2_BUCKET} --key "scale/${TRUENAS_TRAIN}/${destIsoFileName}.iso" --body "./tmp/release/${isoFileName}.iso"
-          /usr/local/bin/aws s3api put-object --endpoint-url ${R2_ENDPOINT} --bucket ${R2_BUCKET} --key "scale/${TRUENAS_TRAIN}/${destIsoFileName}.iso.sha256" --body "./tmp/release/${isoFileName}.iso.sha256"
-          /usr/local/bin/aws s3api put-object --endpoint-url ${R2_ENDPOINT} --bucket ${R2_BUCKET} --key "scale/${TRUENAS_TRAIN}/${destUpdateFileName}.update" --body "./tmp/release/${updateFileName}.update"
-          /usr/local/bin/aws s3api put-object --endpoint-url ${R2_ENDPOINT} --bucket ${R2_BUCKET} --key "scale/${TRUENAS_TRAIN}/${destUpdateFileName}.update.sha256" --body "./tmp/release/${updateFileName}.update.sha256"
-      - name: update releases.json
+          for ext in iso iso.sha256 update update.sha256; do
+            /usr/local/bin/aws s3api put-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" \
+              --key "scale/${TRUENAS_TRAIN}/HarborOS-${TRUENAS_VERSION}.${ext}" \
+              --body "./tmp/release/$(if [[ "$ext" == iso* ]]; then echo "TrueNAS-SCALE-${TRUENAS_VERSION}-HarborOS"; else echo "TrueNAS-SCALE-${TRUENAS_VERSION}"; fi).${ext}"
+          done
         if: ${{ inputs.releaseUpdate }}
-        run: |
-          TRUENAS_VERSION=${{steps.set-version.outputs.HarborNAS_VERSION}} TRUENAS_TRAIN=${{steps.set-version.outputs.TRUENAS_TRAIN}} ./updateserver/test-release.sh
+        env:
+          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
+        run: TRUENAS_VERSION="$TRUENAS_VERSION" TRUENAS_TRAIN="$TRUENAS_TRAIN" ./updateserver/test-release.sh

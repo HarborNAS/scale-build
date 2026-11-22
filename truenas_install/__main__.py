@@ -47,6 +47,7 @@ from licenselib.license import ContractType, License  # noqa
 
 from .dhs import TRUENAS_DATA_HIERARCHY  # noqa
 from .fhs import TRUENAS_DATASETS  # noqa
+from .harbor_state import prepare_harbor_migration  # noqa
 from .utils import getmntinfo, get_pids  # noqa
 
 logger = logging.getLogger(__name__)
@@ -330,6 +331,12 @@ def main():
                 old_root_dataset = i.mount_source
                 break
 
+    # Capture stopped Harbor writers before native /data snapshots are taken.
+    # Any failure below leaves the old BE untouched and prevents bootfs activation.
+    harbor_migration = prepare_harbor_migration(
+        old_root, old_root_dataset, run_command, list(getmntinfo()), bootfs=old_bootfs_prop,
+    )
+
     write_progress(0, "Creating dataset")
     if input.get("dataset_name"):
         dataset_name = input["dataset_name"]
@@ -527,6 +534,11 @@ def main():
                         f"{root}/",
                     ], cwd=old_root)
 
+                    if harbor_migration is not None:
+                        write_progress(0.515, "Preserving Harbor configuration and conversation state")
+                        harbor_migration.copy(root, dataset_name, list(getmntinfo()))
+                        harbor_migration.install_nginx_compatibility(list(getmntinfo()))
+
                     write_progress(0.52, "Migrating configuration database")
                     run_command(["chroot", root, "migrate"])
 
@@ -602,6 +614,11 @@ def main():
                 if configure_serial:
                     write_progress(0.58, "Configuring serial port")
                     configure_serial_port(root, os.path.join(root, "data/freenas-v1.db"))
+
+                if harbor_migration is not None:
+                    # Also verify native /data clones after permission hardening.
+                    # A source change or incomplete destination aborts into the existing BE cleanup path.
+                    harbor_migration.write_receipt(list(getmntinfo()))
 
                 # Set bootfs before running update-grub
                 run_command(["zpool", "set", f"bootfs={dataset_name}", pool_name])
