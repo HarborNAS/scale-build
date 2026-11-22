@@ -67,19 +67,29 @@ class Extension:
         raise NotImplementedError
 
     def build_extension(self, name, dst_path):
-        changed_files = [
-            os.path.relpath(filename, self.chroot)
-            for filename in map(
-                lambda filename: os.path.join(os.getcwd(), filename),
-                run(
-                    ["rsync", "-avn", "--out-format=%f", f"{self.chroot}/", f"{self.chroot_base}/"],
-                    log=False,
-                ).stdout.split("\n")
-            )
-            if os.path.abspath(filename).startswith(os.path.abspath(self.chroot))
-        ]
+        # %n is relative to the source transfer root; %f includes its sender path.
+        changed_files = run(
+            ["rsync", "-an", "--out-format=%n", f"{self.chroot}/", f"{self.chroot_base}/"],
+            log=False,
+        ).stdout.splitlines()
+        sysext_files = set()
+        for filename in changed_files:
+            if os.path.isabs(filename) or ".." in filename.split("/"):
+                raise ValueError("Extension diff path escapes its source tree")
+            filename = os.path.normpath(filename)
+            if filename.startswith("usr/") and filename != "usr/src" and not filename.startswith("usr/src/"):
+                sysext_files.add(filename)
 
-        sysext_files = [f for f in changed_files if f.startswith("usr/") and not (f.startswith("usr/src/"))]
+        payload = {f for f in sysext_files if os.path.isfile(os.path.join(self.chroot, f))
+                   or os.path.islink(os.path.join(self.chroot, f))}
+        required = {"dev-tools": {"usr/bin/make", "usr/bin/sshpass"}, "nvidia": {"usr/bin/nvidia-smi"}}
+        if not payload or not required.get(name, set()).issubset(payload):
+            raise ValueError(f"Extension {name} is missing its expected /usr payload")
+        if name == "nvidia" and not any(
+            f.startswith("usr/lib/modules/") and os.path.basename(f) in
+            ("nvidia.ko", "nvidia.ko.xz", "nvidia.ko.gz", "nvidia.ko.zst") for f in payload
+        ):
+            raise ValueError("NVIDIA extension is missing its kernel module payload")
 
         for root, dirs, files in os.walk(self.chroot, topdown=False):
             for f in files:
@@ -88,10 +98,13 @@ class Extension:
                     os.unlink(os.path.join(root, f))
 
             for d in dirs:
+                path = os.path.join(root, d)
+                if os.path.islink(path):
+                    if os.path.relpath(path, self.chroot) not in sysext_files:
+                        os.unlink(path)
+                    continue
                 try:
-                    os.rmdir(os.path.join(root, d))
-                except NotADirectoryError:
-                    os.unlink(os.path.join(root, d))  # It's a symlink
+                    os.rmdir(path)
                 except OSError as e:
                     if e.errno == errno.ENOTEMPTY:
                         pass
