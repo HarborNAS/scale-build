@@ -7,6 +7,14 @@ on:
         description: "version number"
         required: true
         type: string
+      releaseManifest:
+        description: repository-relative publishable stable release lock
+        required: true
+        type: string
+      promotionManifest:
+        description: repository-relative checksum-bound promotion manifest
+        required: true
+        type: string
 
 jobs:
   build-iso:
@@ -14,15 +22,28 @@ jobs:
     timeout-minutes: 240
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           clean: false
+          fetch-depth: 0
       - name: set version
         id: set-version
         run: |
           CODE_NAME=$(yq -r '.code_name' conf/build.manifest)
           TRAIN="TrueNAS-SCALE-${CODE_NAME}"
           echo "TRUENAS_TRAIN=$TRAIN" >> "$GITHUB_OUTPUT"
+      - name: Install promotion validation dependencies
+        run: sudo apt install -y python3-yaml python3-jsonschema
+      - name: Validate stable publication evidence
+        env:
+          RELEASE_MANIFEST: ${{ inputs.releaseManifest }}
+          PROMOTION_MANIFEST: ${{ inputs.promotionManifest }}
+          EXPECTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          python3 -m scale_build.promotion --release-lock "$GITHUB_WORKSPACE/$RELEASE_MANIFEST" \
+            --manifest "$GITHUB_WORKSPACE/$PROMOTION_MANIFEST" --artifacts-dir "$GITHUB_WORKSPACE/tmp/release" \
+            --expected-version "$EXPECTED_VERSION"
       - name: update releases.json
         run: |
           TRUENAS_VERSION=${{inputs.version}} TRUENAS_TRAIN=${{steps.set-version.outputs.TRUENAS_TRAIN}} ./updateserver/test-release.sh

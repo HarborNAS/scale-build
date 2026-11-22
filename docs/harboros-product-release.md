@@ -28,6 +28,10 @@ strict 模式的 `HARBOROS_RELEASE_MANIFEST` 必须包含 `schema_version=1`、`
 
 strict 构建会拒绝工作树脏改动、错误 source pin、错误 epoch、设备凭据和缺失包收据。`assert_publishable` 仍要求所有组件具备资格，并通过新装、升级、boot environment 回退和重启验收。普通开发/分支构建不要求 manifest，也不获得这些正式候选资格。
 
+所有 stable 上传和 stable OTA 索引操作还必须通过
+[`promotion-manifest` 校验](nexus-stable-promotion.md)。普通分支构建可以保存内部
+artifact，但没有真实材料与验收证据不能写入 stable 存储。
+
 私有草稿 release 资产通过官方 GitHub API 读取，令牌只存在构建环境；草稿 tag 查询返回 404 时仅分页读取官方 release 列表，401、403 和服务器错误不会回退。
 
 ## 手动构建顺序
@@ -66,7 +70,10 @@ builds. `build test iso` accepts `webui` and `middleware` branch names (the
 current forks default to `develop`), a test train suffix and an optional test
 OTA-index update. `build iso` accepts the base version `26.04.0`, checks that
 both `HarborNAS/webui` and `HarborNAS/middleware` have that branch, and creates
-the timestamped system version. It uploads the stable ISO/update files but does
+the timestamped system version. Stable ISO/update upload additionally requires
+the reviewed release lock and checksum-bound promotion manifest. Without a
+promotion manifest the workflow retains the candidate artifact and skips every
+stable-storage write, so a branch-only build cannot bypass that gate. It does
 not update the OTA index.
 
 These compatibility builds do not prove that the Harbor Assistant candidate is

@@ -82,12 +82,21 @@ def _file_environment(path):
 
 def _old_environment(migration, unit):
     values, files = {}, []
-    relative = "etc/systemd/system/" + unit
-    dropins = sorted(key for key in migration.before
-                     if key.startswith(relative + ".d/") and key.endswith(".conf"))
-    for name in (relative, *dropins):
-        if name in migration.before:
-            _unit_environment(_safe_path(migration.old_root, name).read_text(encoding="utf-8"), values, files)
+    directories = ("usr/lib/systemd/system", "etc/systemd/system")
+    relative = next((directory + "/" + unit for directory in reversed(directories)
+                     if os.path.lexists(_safe_path(migration.old_root, directory + "/" + unit))), None)
+    dropins = {}
+    for directory in directories:
+        path = _safe_path(migration.old_root, directory + "/" + unit + ".d")
+        if path.is_symlink() or (path.exists() and not path.is_dir()):
+            raise HarborMigrationError("Unsafe Harbor unit drop-in directory")
+        for child in path.glob("*.conf"):
+            dropins[child.name] = directory + "/" + unit + ".d/" + child.name
+    for name in ([relative] if relative else []) + [dropins[key] for key in sorted(dropins)]:
+        path = _safe_path(migration.old_root, name)
+        if path.is_symlink() or not path.is_file():
+            raise HarborMigrationError("Unsafe Harbor environment unit")
+        _unit_environment(path.read_text(encoding="utf-8"), values, files)
     for filename in files:
         name = filename.lstrip("-").lstrip("/")
         if name not in ENV_FILES:

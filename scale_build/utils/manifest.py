@@ -176,8 +176,10 @@ MANIFEST_SCHEMA = {
                     'type': 'object',
                     'properties': {
                         'current': {'type': 'string'},
+                        'source_url': {'type': 'string'},
+                        'sha256': {'type': 'string', 'pattern': '^[0-9a-f]{64}$'},
                     },
-                    'required': ['current'],
+                    'required': ['current', 'source_url', 'sha256'],
                     'additionalProperties': False,
                 },
             },

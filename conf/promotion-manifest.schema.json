@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nexus stable promotion evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "product", "architecture", "channel", "system_version", "release_lock_sha256", "kernel_release", "lineage", "artifacts", "acceptance", "gpu_recognition"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "product": {"const": "nexus"},
+    "architecture": {"const": "amd64"},
+    "channel": {"const": "stable"},
+    "system_version": {"type": "string", "minLength": 1},
+    "kernel_release": {"type": "string", "minLength": 1},
+    "release_lock_sha256": {"$ref": "#/definitions/sha256"},
+    "lineage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["update_producer_commit", "iso_producer_commit", "runtime_producer_commit", "tag_commit"],
+      "properties": {
+        "update_producer_commit": {"$ref": "#/definitions/commit"},
+        "iso_producer_commit": {"$ref": "#/definitions/commit"},
+        "runtime_producer_commit": {"$ref": "#/definitions/commit"},
+        "tag_commit": {"$ref": "#/definitions/commit"}
+      }
+    },
+    "artifacts": {
+      "type": "array", "minItems": 12,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["kind", "filename", "size_bytes", "sha256"],
+        "properties": {
+          "kind": {"enum": ["iso", "update", "build_receipt", "artifact_readback", "gpu_driver_materials", "acceptance_evidence", "gpu_recognition", "ffmpeg_sbom", "ffmpeg_provenance", "assembly_receipt", "checksum"]},
+          "filename": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]*$"},
+          "size_bytes": {"type": "integer", "minimum": 1},
+          "sha256": {"$ref": "#/definitions/sha256"}
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object", "additionalProperties": false,
+      "required": ["new_install", "native_upgrade", "boot_environment_rollback", "reboot"],
+      "properties": {
+        "new_install": {"type": "string"}, "native_upgrade": {"type": "string"},
+        "boot_environment_rollback": {"type": "string"}, "reboot": {"type": "string"}
+      }
+    },
+    "gpu_recognition": {
+      "type": "object", "additionalProperties": false, "required": ["NVIDIA", "Intel", "AMD"],
+      "properties": {"NVIDIA": {"type": "string"}, "Intel": {"type": "string"}, "AMD": {"type": "string"}}
+    }
+  },
+  "definitions": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+  }
+}
