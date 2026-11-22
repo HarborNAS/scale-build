@@ -3,6 +3,7 @@ import coloredlogs
 import logging
 import sys
 import os
+import json
 
 from .branch_out import branch_out_repos, validate_branch_out_config
 from .checkout import checkout_sources
@@ -19,6 +20,7 @@ from .utils.logger import ConsoleFilter, LogHandler
 from .utils.manifest import get_manifest
 from .validate import validate
 from .product_profiles import selected_profile, release_lock, strict_release_enabled
+from .repack_update import repack_update
 
 
 logger = logging.getLogger('scale_build')
@@ -66,6 +68,11 @@ def main():
     )
     subparsers.add_parser('update', help='Create TrueNAS Scale update image')
     subparsers.add_parser('iso', help='Create TrueNAS Scale iso installation file')
+    repack_parser = subparsers.add_parser('repack-update', help='Replace the installer around a pinned runtime image')
+    repack_parser.add_argument('--source-update', required=True)
+    repack_parser.add_argument('--input-manifest', required=True)
+    repack_parser.add_argument('--expected-input-manifest-sha256', required=True)
+    repack_parser.add_argument('--output-dir', required=True)
     branchout_parser = subparsers.add_parser('branchout', help='Checkout new branch for all packages')
     branchout_parser.add_argument(
         '--skip-push', '-sp', action='store_true', default=False,
@@ -79,7 +86,7 @@ def main():
         validate_parser.set_defaults(**{action: True})
 
     args = parser.parse_args()
-    if args.action in ('checkout', 'packages', 'update', 'iso'):
+    if args.action in ('checkout', 'packages', 'update', 'iso', 'repack-update'):
         strict = os.environ.get('HARBOROS_STRICT_RELEASE', '').strip().lower() in {'1', 'true', 'yes', 'on'}
         release_lock(required=strict)
     if args.action == 'checkout':
@@ -97,6 +104,9 @@ def main():
     elif args.action == 'iso':
         validate()
         build_iso()
+    elif args.action == 'repack-update':
+        print(json.dumps(repack_update(args.source_update, args.input_manifest,
+                                       args.expected_input_manifest_sha256, args.output_dir), indent=2))
     elif args.action == 'clean':
         complete_cleanup()
     elif args.action == 'validate':

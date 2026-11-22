@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "update_source_commit": "70ea1bdb9e1ff73ef18d4e348070663ff7d53c4a",
+  "inner_rootfs_source_commit": "70ea1bdb9e1ff73ef18d4e348070663ff7d53c4a",
+  "runtime_source_commit": "70ea1bdb9e1ff73ef18d4e348070663ff7d53c4a",
+  "system_version": "26.04.0-20261122-074416",
+  "update_sha256": "fda1ca5b424f660d9dd6bb5b1c19839c8579bc8525090e0fc7cc6e2a8d8a9666",
+  "update_size_bytes": 2395975680,
+  "inner_rootfs_sha256": "3e4d6aae1bf29561c79b32597503736770df5c260a35611d990d0d50b0cdd6c8",
+  "inner_rootfs_size_bytes": 2394480640,
+  "native_receipt_sha256": "ba5342c12726867ba11d316a2a650389c73a2006ebd6885e3086a666c57728b2",
+  "release_lock_sha256": "eb69dabb3f09e61f183da2faaf002b8bc34585a36dfe45d12866026360dbd583",
+  "manifest_size_bytes": 9621898035,
+  "kernel_version": "6.18.13-production+truenas",
+  "service_migration": "native-packages-v1"
+}
