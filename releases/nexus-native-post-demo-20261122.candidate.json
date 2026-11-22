@@ -63,7 +63,7 @@
       "source_commit": "d3f9c93c84f4737a4f962ea96bbae878f6a99c05",
       "sha256": "c8f0cbc161c15bda4b66074e93ffb7dbab64a2041f9c008b3cc192f595ac8566",
       "product_profile": "nexus-amd64",
-      "url": "https://github.com/Bean-Harbor-Engineering/HarborBeacon/releases/download/untagged-c3db5ba66b4afded46c7/harboros-beacon_1.1.0%2Bnexus.amd64.20261122.1_linux_amd64.deb",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborBeacon/releases/download/v1.1.0+nexus.amd64.20261122.1/harboros-beacon_1.1.0+nexus.amd64.20261122.1_linux_amd64.deb",
       "release_eligible": false,
       "qualification_status": "component_candidate_not_appliance_qualified",
       "blocking_reasons": [
@@ -77,7 +77,7 @@
       "source_commit": "65a9253d322b8b56b4e0715815e318eeda8925a0",
       "sha256": "d41eea791d1bca13f07ed45ddde0e22d995d467b7746fddfd8f8ce185ecc46a5",
       "product_profile": "nexus-amd64",
-      "url": "https://github.com/Bean-Harbor-Engineering/HarborGate/releases/download/untagged-571d5c91db65fdab02f4/harboros-im-gate_1.1.0%2Bnexus.amd64.20261122.1_linux_amd64.deb",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborGate/releases/download/v1.1.0+nexus.amd64.20261122.1/harboros-im-gate_1.1.0+nexus.amd64.20261122.1_linux_amd64.deb",
       "release_eligible": true,
       "qualification_status": "component_candidate_not_appliance_qualified"
     },
