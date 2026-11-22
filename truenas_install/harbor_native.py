@@ -188,7 +188,7 @@ def install_native_configuration(migration, defaults, mounts):
             raise HarborMigrationError("Unexpected native service enablement")
         target = "/" + relative
         path.symlink_to(target)
-        migration.allowed_links[link] = (target,)
+        migration.allowed_links[link] = tuple(dict.fromkeys((*migration.allowed_links.get(link, ()), target)))
         expected[link] = Entry("link", 0o777, 0, 0, target)
 
         fresh, fixed = defaults["environment"][unit]
