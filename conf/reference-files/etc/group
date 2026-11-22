@@ -91,3 +91,6 @@ polkitd:x:998:
 netdata:x:997:
 sssd:x:122:
 caddy:x:994:
+harborbeacon:x:139:
+harborlink:x:140:harborlink-mediamtx
+harborlink-mediamtx:x:141:

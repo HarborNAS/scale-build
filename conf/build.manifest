@@ -334,6 +334,12 @@ additional-packages:
 - name: intel-gpu-tools
   comment: requested by community (NAS-130356)
   install_recommends: false
+- name: libvulkan1
+  comment: Vulkan loader required by retained Harbor llama and whisper runtimes
+  install_recommends: false
+- name: mesa-vulkan-drivers
+  comment: GPU Vulkan drivers required by retained Harbor llama and whisper runtimes
+  install_recommends: false
 - name: p7zip-rar
   comment: requested by community (NAS-131306) https://forums.truenas.com/t/accepted-add-unrar-7zip-to-truenas-scale/10075
   install_recommends: false
@@ -767,6 +773,7 @@ external-packages:
     url_template: "https://assets.sys.truenas.net/debian-packages/{package}_{version}_{arch}.deb"
   caddy:
     deb_version: "2.10.0"
+    sha256: "03058143ee9b00998676a77c38da3f7d18a7efadb2673024bd48c674cb782bae"
     url_template: "https://github.com/caddyserver/caddy/releases/download/v{version}/caddy_{version}_linux_{arch}.deb"
     post_install_commands:
       - ["systemctl", "disable", "caddy"]
@@ -777,17 +784,15 @@ external-packages:
       - ["systemctl", "disable", "rwd"]
   harboros-subscreen:
     deb_version: "1.0.0"
+    sha256: "d8669b706ba841d7078280425f81250982a7a8c248adfcca560506955c2619f3"
     url_template: "https://github.com/HarborNAS/sub-screen/releases/download/v{version}/harboros-subscreen_{version}_linux_{arch}.deb"
   # harboros-beacon depend on harboros-ffmpeg
   harboros-ffmpeg:
     deb_version: "1.0.0"
+    sha256: "a99decf42b000bfd9c5e54392a4cc6c11a9333fb01ffe6601531671f9442e6a4"
     url_template: "https://update.harboros.ai/deb/harboros-ffmpeg_{version}_linux_{arch}.deb"
   harboros-featured-photos:
     deb_version: "0.1.0"
     url_template: "https://update.harboros.ai/deb/harboros-featured-photos_{version}_linux_{arch}.deb"
-  harboros-im-gate:
-    deb_version: "1.0.0"
-    url_template: "https://github.com/Bean-Harbor/HarborGate/releases/download/v{version}/harboros-im-gate_{version}_linux_{arch}.deb"
-  harboros-beacon:
-    deb_version: "1.0.0"
-    url_template: "https://github.com/Bean-Harbor/HarborBeacon/releases/download/v{version}/harboros-beacon_{version}_linux_{arch}.deb"
+  # Beacon, Gate and HarborLink are injected from HARBOROS_RELEASE_MANIFEST.
+  # Their versions, source commits and package SHA256 must be supplied together.

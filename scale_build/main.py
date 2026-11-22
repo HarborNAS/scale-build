@@ -2,6 +2,7 @@ import argparse
 import coloredlogs
 import logging
 import sys
+import os
 
 from .branch_out import branch_out_repos, validate_branch_out_config
 from .checkout import checkout_sources
@@ -17,6 +18,7 @@ from .update_image import build_update_image
 from .utils.logger import ConsoleFilter, LogHandler
 from .utils.manifest import get_manifest
 from .validate import validate
+from .product_profiles import selected_profile, release_lock, strict_release_enabled
 
 
 logger = logging.getLogger('scale_build')
@@ -38,6 +40,7 @@ def setup_logging():
 
 
 def validate_config():
+    selected_profile()
     manifest = get_manifest()
     packages = [p['name'] for p in manifest['sources']]
     invalid_overrides = [o for o in BRANCH_OVERRIDES if o not in packages]
@@ -50,6 +53,7 @@ def validate_config():
 def main():
     setup_logging()
     preflight_check()
+    validate_config()
     parser = argparse.ArgumentParser(prog='scale-build')
     subparsers = parser.add_subparsers(help='sub-command help', dest='action')
 
@@ -75,6 +79,9 @@ def main():
         validate_parser.set_defaults(**{action: True})
 
     args = parser.parse_args()
+    if args.action in ('checkout', 'packages', 'update', 'iso'):
+        strict = os.environ.get('HARBOROS_STRICT_RELEASE', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+        release_lock(required=strict)
     if args.action == 'checkout':
         check_epoch()
         checkout_sources()

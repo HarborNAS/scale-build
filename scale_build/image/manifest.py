@@ -5,7 +5,9 @@ import os
 import shutil
 import subprocess
 
+from scale_build.build_receipts import RECEIPT_NAME, read_checked_json
 from scale_build.exceptions import CallError
+from scale_build.product_profiles import release_lock
 from scale_build.utils.kernel import get_kernel_version
 from scale_build.utils.paths import BUILDER_DIR, CHROOT_BASEDIR, RELEASE_DIR, UPDATE_DIR
 
@@ -39,14 +41,21 @@ def build_manifest():
                 # FIXME: before we release 25.04.0 proper, change this to sha256
                 checksums[os.path.relpath(abspath, UPDATE_DIR)] = hashlib.file_digest(f, 'sha1').hexdigest()
 
+    manifest = {
+        'date': datetime.utcnow().isoformat(),
+        'version': version,
+        'size': size,
+        'checksums': checksums,
+        'kernel_version': get_kernel_version(CHROOT_BASEDIR),
+    }
+    lock = release_lock()
+    service_migration = (lock or {}).get('scope', {}).get('service_migration')
+    if service_migration is not None:
+        if service_migration != 'native-packages-v1':
+            raise CallError('Unsupported Harbor service migration policy')
+        manifest['harboros'] = {'service_migration': service_migration}
     with open(os.path.join(UPDATE_DIR, 'manifest.json'), "w") as f:
-        f.write(json.dumps({
-            'date': datetime.utcnow().isoformat(),
-            'version': version,
-            'size': size,
-            'checksums': checksums,
-            'kernel_version': get_kernel_version(CHROOT_BASEDIR),
-        }))
+        f.write(json.dumps(manifest))
 
     return version
 
@@ -55,6 +64,7 @@ def build_release_manifest(update_file, update_file_checksum):
     with open(os.path.join(UPDATE_DIR, 'manifest.json')) as f:
         manifest = json.load(f)
 
+    _, receipt_digest = read_checked_json(os.path.join(RELEASE_DIR, RECEIPT_NAME))
     with open(RELEASE_MANIFEST, 'w') as f:
         json.dump({
             'filename': os.path.basename(update_file),
@@ -63,6 +73,7 @@ def build_release_manifest(update_file, update_file_checksum):
             'changelog': '',
             'checksum': update_file_checksum,
             'filesize': os.path.getsize(update_file),
+            'build_receipt': {'filename': RECEIPT_NAME, 'sha256': receipt_digest},
         }, f)
 
 
