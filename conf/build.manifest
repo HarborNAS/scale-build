@@ -75,6 +75,10 @@ base-packages:
   install_recommends: true
 - name: firmware-linux
   install_recommends: true
+- name: firmware-intel-graphics
+  install_recommends: false
+- name: firmware-amd-graphics
+  install_recommends: false
 - name: firmware-myricom
   install_recommends: true
 - name: firmware-netronome
@@ -339,6 +343,9 @@ additional-packages:
   install_recommends: false
 - name: mesa-vulkan-drivers
   comment: GPU Vulkan drivers required by retained Harbor llama and whisper runtimes
+  install_recommends: false
+- name: vulkan-tools
+  comment: physical-device recognition diagnostics; software Vulkan is not GPU qualification
   install_recommends: false
 - name: p7zip-rar
   comment: requested by community (NAS-131306) https://forums.truenas.com/t/accepted-add-unrar-7zip-to-truenas-scale/10075
@@ -760,7 +767,9 @@ sources:
 ############################################################################
 extensions:
   nvidia:
-    current: "590.44.01"
+    current: "595.104.02"
+    source_url: "https://us.download.nvidia.com/XFree86/Linux-x86_64/595.104.02/NVIDIA-Linux-x86_64-595.104.02-no-compat32.run"
+    sha256: "2300803474f9f9c210cbf26b151bf5b671243733dc451ddfb4430290c4ffca64"
 
 # External packages from various sources (GitHub releases, assets.sys.truenas.net)
 ############################################################################

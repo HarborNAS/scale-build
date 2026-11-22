@@ -10,6 +10,7 @@ import re
 from urllib.parse import urlparse, unquote
 import yaml
 from .exceptions import CallError
+from .driver_materials import validate_nvidia_material
 
 PROFILE_FILE = Path(os.environ.get("BUILDER_DIR", ".")) / "conf" / "harboros-products.yaml"
 SHA = re.compile(r"[0-9a-f]{40}")
@@ -100,6 +101,8 @@ def validate_release_lock(lock: dict) -> dict:
         raise CallError("Nexus media dependency harboros-ffmpeg requires a locked artifact and review state")
     if lock.get("runtime", {}).get("mode") != "embedded" and not lock.get("runtime", {}).get("packages"):
         raise CallError("External model runtime requires locked runtime packages")
+    if 'drivers' in lock:
+        validate_nvidia_material(lock['drivers'].get('nvidia', {}))
     return lock
 
 
@@ -121,6 +124,8 @@ def apply_release_lock(manifest: dict) -> dict:
     if lock is None:
         return manifest
     result = copy.deepcopy(manifest)
+    if 'drivers' in lock:
+        result.setdefault('extensions', {})['nvidia'] = dict(lock['drivers']['nvidia'])
     for source in result["sources"]:
         if source["name"] in SOURCE_NAMES:
             pin = lock["components"][SOURCE_NAMES[source["name"]]]
@@ -158,6 +163,12 @@ def apply_release_lock(manifest: dict) -> dict:
         if not DIGEST.fullmatch(str(pin.get("sha256", ""))):
             raise CallError(f"Runtime package {package} requires SHA256")
         external[package] = dict(pin)
+        if package == 'harboros-ffmpeg' and 'materials' in pin:
+            external[package]['component_pin'] = {
+                'version': pin['deb_version'], 'architecture': pin['architecture'],
+                'source_commit': pin['materials'].get('producer', {}).get('commit'),
+                'release_eligible': pin.get('release_eligible'),
+            }
     return result
 
 

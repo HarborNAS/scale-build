@@ -481,6 +481,11 @@ def build_extensions():
         run(["mksquashfs", CHROOT_BASEDIR, rootfs_image, "-one-file-system"])
         do_build_extensions(rootfs_image, sysext_extensions_dir)
 
+    # Keep the same checked material receipt inside the image and beside the
+    # release artifacts. Payload checks are not physical-GPU acceptance.
+    for suffix in ('.qualification.json', '.qualification.json.sha256'):
+        shutil.copy2(Path(sysext_extensions_dir) / ('nvidia.raw' + suffix), Path(RELEASE_DIR) / ('nvidia.raw' + suffix))
+
     external_extesions_dir = os.path.join(RELEASE_DIR, "extensions")
     os.makedirs(external_extesions_dir, exist_ok=True)
     for external_extension in ["dev-tools.raw"]:

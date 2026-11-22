@@ -2,6 +2,7 @@ import errno
 import logging
 import os
 import shutil
+from pathlib import Path
 
 import requests
 
@@ -10,6 +11,8 @@ from .utils.kernel import get_kernel_version
 from .utils.manifest import get_manifest
 from .utils.paths import TMPFS, PKG_DIR
 from .utils.run import run
+from .driver_materials import validate_nvidia_material, verify_nvidia_download, verify_nvidia_payload
+from .build_receipts import checksum, write_checked_json
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +118,11 @@ class Extension:
         with open(f"{self.chroot}/usr/lib/extension-release.d/extension-release.{name}", "w") as f:
             f.write("ID=_any\n")
 
+        self.verify_payload()
         run(["mksquashfs", self.chroot, dst_path, "-comp", "xz"])
+
+    def verify_payload(self):
+        pass
 
     def run(self, cmd: list[str]):
         run_in_chroot(cmd, chroot=self.chroot)
@@ -136,6 +143,8 @@ class NvidiaExtension(Extension):
 
     def build_impl(self):
         kernel_version = get_kernel_version(self.chroot)
+        self.kernel_version = kernel_version
+        self.material = validate_nvidia_material(get_manifest()['extensions']['nvidia'])
 
         for binary in self.binaries:
             os.unlink(os.path.join(self.chroot, f"usr/local/bin/{binary}"))
@@ -149,6 +158,18 @@ class NvidiaExtension(Extension):
 
         self.run(["apt", "-y", "remove"] + self.temporary_packages)
         self.run(["apt", "-y", "autoremove"])
+
+    def verify_payload(self):
+        self.qualification = verify_nvidia_payload(
+            self.chroot, self.kernel_version, self.material,
+            lambda path, field: run(['modinfo', '-F', field, str(path)], log=False).stdout,
+        )
+
+    def build(self, name, dst_path):
+        super().build(name, dst_path)
+        self.qualification['artifact'] = {'filename': Path(dst_path).name,
+                                          'sha256': checksum(dst_path), 'size_bytes': Path(dst_path).stat().st_size}
+        write_checked_json(str(dst_path) + '.qualification.json', self.qualification)
 
     def add_nvidia_repository(self):
         r = requests.get("https://nvidia.github.io/libnvidia-container/gpgkey")
@@ -164,13 +185,14 @@ class NvidiaExtension(Extension):
                     "https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /")
 
     def download_nvidia_driver(self):
-        prefix = "https://us.download.nvidia.com/XFree86/Linux-x86_64"
-
-        version = get_manifest()["extensions"]["nvidia"]["current"]
+        material = validate_nvidia_material(get_manifest()['extensions']['nvidia'])
+        version = material['current']
         filename = f"NVIDIA-Linux-x86_64-{version}-no-compat32.run"
         result = f"{self.chroot}/{filename}"
 
-        self.run(["wget", "-c", "-O", f"/{filename}", f"{prefix}/{version}/{filename}"])
+        self.run(["wget", "-c", "-O", f"/{filename}", material['source_url']])
+        verify_nvidia_download(result, material)
+        self.run(['sh', f'/{filename}', '--check'])
 
         os.chmod(result, 0o755)
         return result
@@ -186,7 +208,8 @@ class NvidiaExtension(Extension):
                 f"--kernel-name={kernel_version}",
                 "--allow-installation-with-running-driver",
                 "--no-rebuild-initramfs",
-                "--kernel-module-type=open"
+                "--kernel-module-type=open",
+                "--vulkan-icd-dir=/usr/share/vulkan/icd.d",
             ]
         )
 

@@ -17,6 +17,11 @@ name: build iso
         required: false
         default: ''
         type: string
+      promotionManifest:
+        description: repository-relative stable promotion evidence; required before stable upload
+        required: false
+        default: ''
+        type: string
 permissions:
   contents: read
 env:
@@ -30,11 +35,12 @@ jobs:
     timeout-minutes: 240
     steps:
       - name: Checkout build system
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           clean: false
+          fetch-depth: 0
       - name: Install build dependencies
-        run: sudo apt install -y build-essential debootstrap git python3-pip python3-venv python3-yaml squashfs-tools unzip libjson-perl rsync libarchive-tools
+        run: sudo apt install -y build-essential debootstrap git python3-pip python3-venv python3-yaml python3-jsonschema squashfs-tools unzip libjson-perl rsync libarchive-tools
       - name: Validate version and set build identity
         id: set-version
         env:
@@ -88,7 +94,7 @@ jobs:
           TRUENAS_VENDOR: HarborOS
         run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make iso
       - name: Save candidate images and build log
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
           name: harboros-nexus-${{ steps.set-version.outputs.HarborNAS_VERSION }}
           path: |
@@ -96,7 +102,21 @@ jobs:
             logs/GITMANIFEST
             ${{ inputs.releaseManifest }}
           if-no-files-found: error
+      - name: Validate stable publication evidence
+        if: ${{ inputs.promotionManifest != '' }}
+        env:
+          RELEASE_MANIFEST: ${{ inputs.releaseManifest }}
+          PROMOTION_MANIFEST: ${{ inputs.promotionManifest }}
+          EXPECTED_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_MANIFEST"
+          test -n "$PROMOTION_MANIFEST"
+          python3 -m scale_build.promotion --release-lock "$GITHUB_WORKSPACE/$RELEASE_MANIFEST" \
+            --manifest "$GITHUB_WORKSPACE/$PROMOTION_MANIFEST" --artifacts-dir "$GITHUB_WORKSPACE/tmp/release" \
+            --expected-version "$EXPECTED_VERSION"
       - name: Upload ISO and update to stable storage
+        if: ${{ inputs.promotionManifest != '' }}
         env:
           QCLOUD_ACCESS_KEY_ID: ${{ secrets.QCLOUD_SECRETID }}
           QCLOUD_SECRET_ACCESS_KEY: ${{ secrets.QCLOUD_SECRETKEY }}
