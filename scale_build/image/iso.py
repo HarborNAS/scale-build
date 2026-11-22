@@ -112,8 +112,10 @@ def make_iso_file():
         os.unlink(f)
 
     shutil.copy(update_file_path(), os.path.join(CD_DIR, 'TrueNAS.update'))
-    os.makedirs(os.path.join(CHROOT_BASEDIR, RELEASE_DIR), exist_ok=True)
-    os.makedirs(os.path.join(CHROOT_BASEDIR, CD_DIR), exist_ok=True)
+    release_chroot_dir = os.path.join(CHROOT_BASEDIR, RELEASE_DIR.lstrip(os.sep))
+    cd_chroot_dir = os.path.join(CHROOT_BASEDIR, CD_DIR.lstrip(os.sep))
+    os.makedirs(release_chroot_dir, exist_ok=True)
+    os.makedirs(cd_chroot_dir, exist_ok=True)
 
     # Debian GRUB EFI image probes for `.disk/info` file to identify a device/partition
     # to load config file from.
@@ -122,8 +124,8 @@ def make_iso_file():
         pass
 
     try:
-        run(['mount', '--bind', RELEASE_DIR, os.path.join(CHROOT_BASEDIR, RELEASE_DIR)])
-        run(['mount', '--bind', CD_DIR, os.path.join(CHROOT_BASEDIR, CD_DIR)])
+        run(['mount', '--bind', RELEASE_DIR, release_chroot_dir])
+        run(['mount', '--bind', CD_DIR, cd_chroot_dir])
         run(['mount', '--bind', PKG_DIR, os.path.join(CHROOT_BASEDIR, 'packages')])
         run_in_chroot(['apt-get', 'update'], check=False)
         run_in_chroot([
@@ -207,8 +209,8 @@ def make_iso_file():
         finally:
             run(['losetup', '-d', lo])
     finally:
-        run(['umount', '-f', os.path.join(CHROOT_BASEDIR, CD_DIR)])
-        run(['umount', '-f', os.path.join(CHROOT_BASEDIR, RELEASE_DIR)])
+        run(['umount', '-f', cd_chroot_dir])
+        run(['umount', '-f', release_chroot_dir])
         run(['umount', '-f', os.path.join(CHROOT_BASEDIR, 'packages')])
 
     image_version = get_image_version(vendor=TRUENAS_VENDOR)
