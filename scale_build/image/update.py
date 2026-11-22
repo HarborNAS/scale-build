@@ -119,6 +119,10 @@ def install_rootfs_packages_impl():
     run_in_chroot(['apt', 'update'])
 
     manifest = get_manifest()
+    locked_packages = _locked_external_package_names(release_lock(required=strict_release_enabled()))
+    if locked_packages:
+        # The distro WebUI depends on Gate, which is supplied by the release lock.
+        install_external_packages(package_names=locked_packages)
     packages_to_install = {False: set(), True: set()}
     for package_entry in itertools.chain(manifest['base-packages'], manifest['additional-packages']):
         packages_to_install[package_entry['install_recommends']].add(package_entry['name'])
@@ -315,10 +319,18 @@ def get_debian_arch():
     return arch_map.get(machine, 'amd64')  # Default to amd64
 
 
-def install_external_packages():
-    """Download and install all external packages defined in build.manifest."""
+def _locked_external_package_names(lock):
+    if lock is None:
+        return set()
+    return set(lock['packages']) | set(lock.get('runtime', {}).get('packages', {}))
+
+
+def install_external_packages(package_names=None):
+    """Install selected external packages, or all when no selection is supplied."""
     manifest = get_manifest()
     external_packages = manifest.get('external-packages', {})
+    if package_names is not None:
+        external_packages = {name: config for name, config in external_packages.items() if name in package_names}
 
     if not external_packages:
         logger.info('No external packages defined in build.manifest')
@@ -363,8 +375,9 @@ def custom_rootfs_setup():
         output.write_text(json.dumps(lock, indent=2) + '\n', encoding='utf-8')
     # Any kind of custom mangling of the built rootfs image can exist here
 
-    # Install all external packages defined in build.manifest
-    install_external_packages()
+    # Other external apps still need the completed base OS before installation.
+    remaining_packages = set(get_manifest().get('external-packages', {})) - _locked_external_package_names(lock)
+    install_external_packages(package_names=remaining_packages)
     if lock is not None:
         from ..product_profiles import verify_unprovisioned_image
         verify_unprovisioned_image(Path(CHROOT_BASEDIR))

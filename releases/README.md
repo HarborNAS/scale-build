@@ -7,9 +7,11 @@ Current post-Demo input:
 
 - Product: `nexus`; architecture: `amd64`; status: `internal_candidate`.
 - System version: `26.04.0-20261122-074416`.
-- Frozen `scale-build` source pin:
+- Initial `scale-build` source pin (before image-assembly fixes):
   `9eb43128b4fbba9673bd72600ea7a7331e6d370d`. Component source commits,
   package versions and artifact hashes are pinned in the candidate input.
+  The actual image-assembly source and outcome are recorded in the build
+  delivery receipts.
 - Service migration: `native-packages-v1`, using native component packages and
   explicit service/state migration into the new boot environment. This does
   not make the image a self-contained application image; model weights,
