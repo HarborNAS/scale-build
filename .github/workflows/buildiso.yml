@@ -35,11 +35,13 @@ jobs:
     timeout-minutes: 240
     steps:
       - name: Checkout build system
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: 527cb3b207b744c1aea23c271d13b93157b6569f
-          clean: false
-          fetch-depth: 0
+        shell: bash
+        run: |
+          set -euo pipefail
+          readonly expected_sha=527cb3b207b744c1aea23c271d13b93157b6569f
+          readonly actual_sha="$(git -c safe.directory="$GITHUB_WORKSPACE" rev-parse HEAD)"
+          git -c safe.directory="$GITHUB_WORKSPACE" cat-file -e "${expected_sha}^{commit}"
+          test "$actual_sha" = "$expected_sha"
       - name: Reset build diagnostics
         id: reset-diagnostics
         run: sudo rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST
