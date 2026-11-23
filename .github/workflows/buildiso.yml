@@ -81,13 +81,10 @@ jobs:
           TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
           TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
           TRUENAS_VENDOR: HarborOS
-          HTTPS_PROXY: http://127.0.0.1:8118
-          HTTP_PROXY: http://127.0.0.1:8118
           https_proxy: http://127.0.0.1:8118
           http_proxy: http://127.0.0.1:8118
-          NO_PROXY: 127.0.0.1,localhost
           no_proxy: 127.0.0.1,localhost
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,HTTPS_PROXY,HTTP_PROXY,https_proxy,http_proxy,NO_PROXY,no_proxy make packages
+        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,https_proxy,http_proxy,no_proxy make packages
       - name: Build update
         env:
           SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
@@ -95,26 +92,20 @@ jobs:
           TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
           TRUENAS_VENDOR: HarborOS
           HARBOROS_COMPONENT_READ_TOKEN: ${{ secrets.COMPONENT_RELEASE_READ_TOKEN }}
-          HTTPS_PROXY: http://127.0.0.1:8118
-          HTTP_PROXY: http://127.0.0.1:8118
           https_proxy: http://127.0.0.1:8118
           http_proxy: http://127.0.0.1:8118
-          NO_PROXY: 127.0.0.1,localhost
           no_proxy: 127.0.0.1,localhost
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,HARBOROS_COMPONENT_READ_TOKEN,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,HTTPS_PROXY,HTTP_PROXY,https_proxy,http_proxy,NO_PROXY,no_proxy make update
+        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,HARBOROS_COMPONENT_READ_TOKEN,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,https_proxy,http_proxy,no_proxy make update
       - name: Build ISO
         env:
           SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
           TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
           TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
           TRUENAS_VENDOR: HarborOS
-          HTTPS_PROXY: http://127.0.0.1:8118
-          HTTP_PROXY: http://127.0.0.1:8118
           https_proxy: http://127.0.0.1:8118
           http_proxy: http://127.0.0.1:8118
-          NO_PROXY: 127.0.0.1,localhost
           no_proxy: 127.0.0.1,localhost
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,HTTPS_PROXY,HTTP_PROXY,https_proxy,http_proxy,NO_PROXY,no_proxy make iso
+        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,https_proxy,http_proxy,no_proxy make iso
       - name: Save failed build diagnostics
         if: ${{ failure() && steps.reset-diagnostics.outcome == 'success' }}
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
