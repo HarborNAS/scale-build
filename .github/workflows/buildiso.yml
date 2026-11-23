@@ -84,7 +84,8 @@ jobs:
           https_proxy: http://127.0.0.1:8118
           http_proxy: http://127.0.0.1:8118
           no_proxy: 127.0.0.1,localhost
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,https_proxy,http_proxy,no_proxy make packages
+          DEBUILD_PRESERVE_ENVVARS: http_proxy,https_proxy,no_proxy
+        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR,https_proxy,http_proxy,no_proxy,DEBUILD_PRESERVE_ENVVARS make packages
       - name: Build update
         env:
           SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
