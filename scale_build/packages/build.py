@@ -79,6 +79,9 @@ class BuildPackageMixin:
         env = {
             'RELEASE_VERSION': VERSION,
         }
+        for name in ('http_proxy', 'https_proxy', 'no_proxy'):
+            if name in os.environ:
+                env[name] = os.environ[name]
         epoch = release_build_epoch()
         if epoch is not None:
             env['SOURCE_DATE_EPOCH'] = str(epoch)
