@@ -209,8 +209,18 @@ class NvidiaExtension(Extension):
                 "--allow-installation-with-running-driver",
                 "--no-rebuild-initramfs",
                 "--kernel-module-type=open",
-                "--vulkan-icd-dir=/usr/share/vulkan/icd.d",
             ]
         )
 
+        self.retain_nvidia_vulkan_icd()
         os.unlink(driver)
+
+    def retain_nvidia_vulkan_icd(self):
+        source = Path(self.chroot) / 'etc/vulkan/icd.d/nvidia_icd.json'
+        destination = Path(self.chroot) / 'usr/share/vulkan/icd.d/nvidia_icd.json'
+        if source.is_symlink() or not source.is_file() or not source.stat().st_size:
+            raise ValueError('NVIDIA installer did not produce a regular Vulkan ICD descriptor')
+        if destination.exists() or destination.is_symlink():
+            raise ValueError('NVIDIA Vulkan ICD destination already exists')
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
