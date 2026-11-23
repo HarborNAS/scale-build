@@ -9,6 +9,91 @@ from unittest.mock import patch
 from scale_build import extensions
 
 
+class NvidiaInstallerTests(unittest.TestCase):
+    def test_installer_copies_default_vulkan_icd_into_the_usr_extension(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / 'etc/vulkan/icd.d/nvidia_icd.json'
+            source.parent.mkdir(parents=True)
+            source.write_text('{"ICD": {"library_path": "libGLX_nvidia.so.0"}}')
+            driver = root / 'NVIDIA-Linux-x86_64.run'
+            driver.write_text('installer')
+            builder = extensions.NvidiaExtension('', '', str(root))
+            with patch.object(builder, 'download_nvidia_driver', return_value=str(driver)), patch.object(
+                builder, 'run'
+            ) as command:
+                builder.install_nvidia_driver('target-kernel')
+            install = command.call_args.args[0]
+            self.assertNotIn('--vulkan-icd-dir=/usr/share/vulkan/icd.d', install)
+            self.assertIn('--kernel-name=target-kernel', install)
+            destination = root / 'usr/share/vulkan/icd.d/nvidia_icd.json'
+            self.assertEqual(destination.read_text(), '{"ICD": {"library_path": "libGLX_nvidia.so.0"}}')
+            self.assertTrue(source.exists())
+            self.assertFalse(driver.exists())
+
+    def test_installer_rejects_a_missing_default_vulkan_icd(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            driver = root / 'NVIDIA-Linux-x86_64.run'
+            driver.write_text('installer')
+            builder = extensions.NvidiaExtension('', '', str(root))
+            with patch.object(builder, 'download_nvidia_driver', return_value=str(driver)), patch.object(
+                builder, 'run'
+            ), self.assertRaisesRegex(ValueError, 'Vulkan ICD'):
+                builder.install_nvidia_driver('target-kernel')
+
+    def test_installer_rejects_an_empty_default_vulkan_icd(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / 'etc/vulkan/icd.d/nvidia_icd.json'
+            source.parent.mkdir(parents=True)
+            source.write_bytes(b'')
+            driver = root / 'NVIDIA-Linux-x86_64.run'
+            driver.write_text('installer')
+            builder = extensions.NvidiaExtension('', '', str(root))
+            with patch.object(builder, 'download_nvidia_driver', return_value=str(driver)), patch.object(
+                builder, 'run'
+            ), self.assertRaisesRegex(ValueError, 'regular Vulkan ICD'):
+                builder.install_nvidia_driver('target-kernel')
+
+    def test_installer_rejects_a_symlinked_default_vulkan_icd(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            target = root / 'untrusted.json'
+            target.write_text('{"ICD": {}}')
+            source = root / 'etc/vulkan/icd.d/nvidia_icd.json'
+            source.parent.mkdir(parents=True)
+            try:
+                source.symlink_to(target)
+            except OSError as error:
+                self.skipTest(f'symlinks are unavailable: {error}')
+            driver = root / 'NVIDIA-Linux-x86_64.run'
+            driver.write_text('installer')
+            builder = extensions.NvidiaExtension('', '', str(root))
+            with patch.object(builder, 'download_nvidia_driver', return_value=str(driver)), patch.object(
+                builder, 'run'
+            ), self.assertRaisesRegex(ValueError, 'regular Vulkan ICD'):
+                builder.install_nvidia_driver('target-kernel')
+
+    def test_installer_rejects_an_existing_retained_vulkan_icd(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / 'etc/vulkan/icd.d/nvidia_icd.json'
+            source.parent.mkdir(parents=True)
+            source.write_text('{"ICD": {}}')
+            destination = root / 'usr/share/vulkan/icd.d/nvidia_icd.json'
+            destination.parent.mkdir(parents=True)
+            destination.write_text('existing')
+            driver = root / 'NVIDIA-Linux-x86_64.run'
+            driver.write_text('installer')
+            builder = extensions.NvidiaExtension('', '', str(root))
+            with patch.object(builder, 'download_nvidia_driver', return_value=str(driver)), patch.object(
+                builder, 'run'
+            ), self.assertRaisesRegex(ValueError, 'destination already exists'):
+                builder.install_nvidia_driver('target-kernel')
+            self.assertEqual(destination.read_text(), 'existing')
+
+
 @unittest.skipUnless(all(shutil.which(tool) for tool in ('rsync', 'mksquashfs', 'unsquashfs')),
                      'Linux extension packaging tools are required')
 class ExtensionPayloadTests(unittest.TestCase):
