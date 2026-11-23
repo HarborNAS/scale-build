@@ -31,12 +31,13 @@ env:
   HARBOROS_RELEASE_MANIFEST: ${{ inputs.releaseManifest != '' && format('{0}/{1}', github.workspace, inputs.releaseManifest) || '' }}
 jobs:
   build-iso:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [harbor-migration-canary]
     timeout-minutes: 240
     steps:
       - name: Checkout build system
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: 527cb3b207b744c1aea23c271d13b93157b6569f
           clean: false
           fetch-depth: 0
       - name: Reset build diagnostics
