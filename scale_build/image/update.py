@@ -417,9 +417,36 @@ def custom_rootfs_setup():
     os.symlink("/var/local/ca-certificates", local_cacerts)
 
 
+def _simulated_apt_removals(to_remove):
+    if not to_remove:
+        return set()
+    result = run_in_chroot(
+        ['env', 'LC_ALL=C', 'apt-get', '--simulate', 'remove', *to_remove], log=False,
+    )
+    removals = set()
+    for line in result.stdout.splitlines():
+        match = re.match(r'^Remv\s+(\S+)', line)
+        if match:
+            removals.add(match.group(1).split(':', 1)[0])
+    missing = set(to_remove) - removals
+    if missing:
+        raise CallError(f'APT prune simulation did not include requested packages: {sorted(missing)}')
+    return removals
+
+
+def _assert_prune_preserves_protected(to_remove, protected):
+    blocked = _simulated_apt_removals(to_remove) & set(protected)
+    if blocked:
+        raise CallError(f'APT prune transaction would remove protected packages: {sorted(blocked)}')
+
+
 def clean_rootfs():
     installed = {item['package'] for item in installed_packages(CHROOT_BASEDIR)}
     to_remove = [package for package in get_manifest()['base-prune'] if package in installed]
+    lock = release_lock(required=strict_release_enabled())
+    if lock is not None:
+        protected = _locked_external_package_names(lock) | {'truenas', 'truenas-webui'}
+        _assert_prune_preserves_protected(to_remove, protected)
     if to_remove:
         run_in_chroot(['apt', 'remove', '-y'] + to_remove)
 

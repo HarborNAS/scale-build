@@ -269,6 +269,34 @@ class AssemblyIntegrationTests(unittest.TestCase):
             self.assertEqual(json.loads(output.read_text())['build_receipt'],
                              {'filename': receipts.RECEIPT_NAME, 'sha256': digest})
 
+    def test_prune_guard_accepts_a_transaction_that_preserves_protected_packages(self):
+        result = Mock(stdout='Remv gnupg [2.4.7]\n')
+        with patch.object(update, 'run_in_chroot', return_value=result) as command:
+            update._assert_prune_preserves_protected(['gnupg'], {'harboros-beacon', 'truenas'})
+        command.assert_called_once_with(
+            ['env', 'LC_ALL=C', 'apt-get', '--simulate', 'remove', 'gnupg'], log=False,
+        )
+
+    def test_prune_guard_rejects_a_transaction_that_removes_a_protected_package(self):
+        result = Mock(stdout='Remv x11-common [1:7.7]\nRemv harboros-ffmpeg:amd64 [1.1.0]\n')
+        with (
+            patch.object(update, 'run_in_chroot', return_value=result),
+            self.assertRaisesRegex(CallError, 'protected packages.*harboros-ffmpeg'),
+        ):
+            update._assert_prune_preserves_protected(['x11-common'], {'harboros-ffmpeg'})
+
+    def test_prune_guard_fails_closed_when_simulation_does_not_confirm_requested_package(self):
+        with (
+            patch.object(update, 'run_in_chroot', return_value=Mock(stdout='')),
+            self.assertRaisesRegex(CallError, 'did not include requested packages'),
+        ):
+            update._assert_prune_preserves_protected(['gnupg'], {'harboros-beacon'})
+
+    def test_nexus_ffmpeg_runtime_dependency_is_not_base_pruned(self):
+        import yaml
+        manifest = yaml.safe_load(Path('conf/build.manifest').read_text(encoding='utf-8'))
+        self.assertNotIn('x11-common', manifest['base-prune'])
+
     def test_cleanup_preserves_only_component_notices_and_keeps_other_pruning(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
