@@ -15,11 +15,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source_dir="$RUNNER_WORKSPACE/scale-build/scale-build/sources"
+          source_dir="$GITHUB_WORKSPACE/sources"
           test -d "$source_dir"
           test -d "$source_dir/kernel/.git"
           sudo tar --zstd -cf "$RUNNER_TEMP/scale-build-sources-527cb3b.tar.zst" \
-            -C "$RUNNER_WORKSPACE/scale-build/scale-build" sources
+            -C "$GITHUB_WORKSPACE" sources
           sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/scale-build-sources-527cb3b.tar.zst"
           (
             cd "$RUNNER_TEMP"
@@ -56,7 +56,7 @@ jobs:
             cd "$relay_dir"
             sha256sum -c scale-build-sources-527cb3b.tar.zst.sha256
           )
-          workspace="$RUNNER_WORKSPACE/scale-build/scale-build"
+          workspace="$GITHUB_WORKSPACE"
           test "$workspace" = "/export/actions-runner/_work/scale-build/scale-build"
           sudo rm -rf -- "$workspace/sources"
           sudo tar --zstd -xf "$relay_dir/scale-build-sources-527cb3b.tar.zst" -C "$workspace"
