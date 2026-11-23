@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "product": "nexus",
+  "architecture": "amd64",
+  "system_version": "26.04.0-20261123-041147",
+  "source_date_epoch": 1795407107,
+  "status": "internal_candidate",
+  "components": {
+    "beacon": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborBeacon",
+      "commit": "97f51423e1ec1f821faaa884a84ef1ba336be19f",
+      "ref": "master"
+    },
+    "gate": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborGate",
+      "commit": "434ee3816e65c1e43c3e3b36d7add37129dbc850",
+      "ref": "main"
+    },
+    "harborlink": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborLink",
+      "commit": "7335324973103ad990c63e80d48dfa7704114eb7",
+      "ref": "main"
+    },
+    "webui": {
+      "repository": "https://github.com/HarborNAS/webui",
+      "commit": "d7afcd9f80cacdf2411488192e0f51a67f9772d7",
+      "ref": "develop"
+    },
+    "middleware": {
+      "repository": "https://github.com/HarborNAS/middleware",
+      "commit": "ca805fd31cdd6cc4f628581eb2420e57944a630f",
+      "ref": "26.04.0"
+    },
+    "runtime": {
+      "repository": "https://github.com/Bean-Harbor-Engineering/HarborBeacon",
+      "commit": "97f51423e1ec1f821faaa884a84ef1ba336be19f",
+      "ref": "master"
+    }
+  },
+  "runtime": {
+    "mode": "embedded",
+    "embedded_backend": "candle",
+    "external_endpoint_runtime_status": "needs_separate_runtime_qualification",
+    "packages": {
+      "harboros-ffmpeg": {
+        "architecture": "amd64",
+        "deb_version": "1.1.0+ffmpeg9.1+nexus.amd64.20261122.9",
+        "sha256": "94172ec307ba940f445016a28979e465c49d5b42e223eb43fccbfa5f4815cdb5",
+        "url_template": "https://update.harboros.ai/candidate/deb/harboros-ffmpeg/1.1.0+ffmpeg9.1+nexus.amd64.20261122.9/harboros-ffmpeg_1.1.0+ffmpeg9.1+nexus.amd64.20261122.9_linux_amd64.deb",
+        "release_eligible": true,
+        "materials": {
+          "artifacts": {
+            "libopus_source": {
+              "filename": "opus-1.5.2.tar.gz",
+              "sha256": "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1"
+            },
+            "notices": {
+              "filename": "THIRD_PARTY_NOTICES",
+              "sha256": "5fc0c10899e7e04b591e38cef8b768797361f47c197d43d231341c6699fbd6a6"
+            },
+            "package": {
+              "filename": "harboros-ffmpeg_1.1.0+ffmpeg9.1+nexus.amd64.20261122.9_linux_amd64.deb",
+              "sha256": "94172ec307ba940f445016a28979e465c49d5b42e223eb43fccbfa5f4815cdb5"
+            },
+            "provenance": {
+              "filename": "harboros-ffmpeg.provenance.json",
+              "sha256": "8d4e598d33a7f9d7599cdb71a2f36a9656aa32e101941de9be5353a24fba0a19"
+            },
+            "sbom": {
+              "filename": "harboros-ffmpeg.spdx.json",
+              "sha256": "7b4976856d5469c129a9b0e107fb1e35bd654747686ddc66aff9c4aff6ed6d8c"
+            },
+            "source": {
+              "filename": "ffmpeg-9.1.tar.xz",
+              "sha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433"
+            },
+            "source_signature": {
+              "filename": "ffmpeg-9.1.tar.xz.asc",
+              "sha256": "8c0bf6017492434e11766c6cc841b30e4a6b31e896eaf813de0acd05757fd50e"
+            }
+          },
+          "configure_flags": [
+            "--prefix=/usr",
+            "--bindir=/usr/bin",
+            "--extra-cflags=-I/opt/harboros-ffmpeg/libopus-1.5.2/include",
+            "--extra-ldflags=-L/opt/harboros-ffmpeg/libopus-1.5.2/lib",
+            "--extra-libs=-lm",
+            "--disable-autodetect",
+            "--disable-debug",
+            "--disable-doc",
+            "--disable-gpl",
+            "--disable-nonfree",
+            "--enable-gnutls",
+            "--enable-libopus",
+            "--enable-sdl2",
+            "--enable-zlib"
+          ],
+          "libopus": {
+            "sha256": "65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1",
+            "url": "https://github.com/xiph/opus/releases/download/v1.5.2/opus-1.5.2.tar.gz",
+            "version": "1.5.2"
+          },
+          "libopus_configure_flags": [
+            "--prefix=/opt/harboros-ffmpeg/libopus-1.5.2",
+            "--disable-shared",
+            "--enable-static",
+            "--disable-doc",
+            "--disable-extra-programs"
+          ],
+          "producer": {
+            "commit": "49776329c0221a62d4b03e04fbd042508bdf73c2",
+            "repository": "https://github.com/Bean-Harbor-Engineering/HarborBeacon"
+          },
+          "schema_version": 1,
+          "source_date_epoch": 1795133016,
+          "toolchain": {
+            "image": "debian:bookworm-slim@sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc"
+          },
+          "upstream": {
+            "commit": "74e4393595cf2b5857f0da925c4e0dd74ea306e5",
+            "name": "FFmpeg",
+            "sha256": "1a4d394ae63d190a526cd052eb4415c156b5c5e2df37efab41a7de0b8fde2433",
+            "signature": "ffmpeg-9.1.tar.xz.asc",
+            "signing_key_fingerprint": "FCF986EA15E6E293A5644F10B4322F04D67658D8",
+            "tag": "n9.1",
+            "tag_object": "9d106a4c5a139fac2a62c349817017191217a9d8",
+            "url": "https://ffmpeg.org/releases/ffmpeg-9.1.tar.xz",
+            "version": "9.1"
+          }
+        }
+      }
+    }
+  },
+  "drivers": {
+    "nvidia": {
+      "current": "595.104.02",
+      "source_url": "https://us.download.nvidia.com/XFree86/Linux-x86_64/595.104.02/NVIDIA-Linux-x86_64-595.104.02-no-compat32.run",
+      "sha256": "2300803474f9f9c210cbf26b151bf5b671243733dc451ddfb4430290c4ffca64"
+    }
+  },
+  "packages": {
+    "harboros-beacon": {
+      "version": "1.1.0+nexus.amd64.20261122.3",
+      "architecture": "amd64",
+      "source_commit": "97f51423e1ec1f821faaa884a84ef1ba336be19f",
+      "sha256": "79b12170f513996af9b12fe28fddbc0eea8633924d317c2b5f572a286d862c28",
+      "product_profile": "nexus-amd64",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborBeacon/releases/download/v1.1.0+nexus.amd64.20261122.3/harboros-beacon_1.1.0+nexus.amd64.20261122.3_linux_amd64.deb",
+      "release_eligible": true,
+      "qualification_status": "component_candidate_not_appliance_qualified"
+    },
+    "harboros-im-gate": {
+      "version": "1.1.0+nexus.amd64.20261122.2",
+      "architecture": "amd64",
+      "source_commit": "434ee3816e65c1e43c3e3b36d7add37129dbc850",
+      "sha256": "0c26ff0ef5b5fec1a3110fbded82f0418d3619be625620cdec181f8f8af1d96f",
+      "product_profile": "nexus-amd64",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborGate/releases/download/v1.1.0+nexus.amd64.20261122.2/harboros-im-gate_1.1.0+nexus.amd64.20261122.2_linux_amd64.deb",
+      "release_eligible": true,
+      "qualification_status": "component_candidate_not_appliance_qualified"
+    },
+    "harborlink": {
+      "version": "1.1.0+nexus.amd64.20261122.6",
+      "architecture": "amd64",
+      "source_commit": "7335324973103ad990c63e80d48dfa7704114eb7",
+      "sha256": "b7c0496f2e9492090c64d79f5ff28faaf556b76ef6d73da36025083d606edf9b",
+      "product_profile": "nexus-amd64",
+      "url": "https://github.com/Bean-Harbor-Engineering/HarborLink/releases/download/v1.1.0+nexus.amd64.20261122.6/harborlink_1.1.0+nexus.amd64.20261122.6_linux_amd64.deb",
+      "release_eligible": true,
+      "qualification_status": "component_candidate_not_appliance_qualified"
+    }
+  },
+  "acceptance": {
+    "new_install": "pending",
+    "native_upgrade": "pending",
+    "boot_environment_rollback": "pending",
+    "reboot": "pending"
+  },
+  "scope": {
+    "kind": "native-package-upgrade-and-fresh-install",
+    "service_migration": "native-packages-v1",
+    "self_contained_application_image": false,
+    "native_component_packages": true,
+    "model_runtime_provisioning": "separate",
+    "base_component_lock": "nexus-storage-upgrade-20261117.candidate.json",
+    "external_publication": false,
+    "ota_index_update": false,
+    "full_predeployment_test_suite": "skipped_by_owner_request"
+  }
+}
