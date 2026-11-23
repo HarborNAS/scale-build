@@ -332,7 +332,7 @@ class ProductProfileTests(unittest.TestCase):
         self.assertEqual(reset['id'], 'reset-diagnostics')
         self.assertEqual(
             reset['run'],
-            'rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST',
+            'sudo rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST',
         )
         self.assertEqual(step['if'], "${{ failure() && steps.reset-diagnostics.outcome == 'success' }}")
         self.assertEqual(

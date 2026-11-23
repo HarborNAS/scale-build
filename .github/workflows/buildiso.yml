@@ -41,7 +41,7 @@ jobs:
           fetch-depth: 0
       - name: Reset build diagnostics
         id: reset-diagnostics
-        run: rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST
+        run: sudo rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST
       - name: Install build dependencies
         run: sudo apt install -y build-essential debootstrap git python3-pip python3-venv python3-yaml python3-jsonschema squashfs-tools unzip libjson-perl rsync libarchive-tools
       - name: Validate version and set build identity
