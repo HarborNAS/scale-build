@@ -1,152 +1,64 @@
-name: build iso
+name: relay migration source cache
 
 'on':
   workflow_dispatch:
-    inputs:
-      version:
-        description: Base release version, for example 26.04.0
-        required: true
-        type: string
-      strictRelease:
-        description: use reviewed immutable candidate inputs
-        required: false
-        default: false
-        type: boolean
-      releaseManifest:
-        description: repository-relative manifest for strict mode
-        required: false
-        default: ''
-        type: string
-      promotionManifest:
-        description: repository-relative stable promotion evidence; required before stable upload
-        required: false
-        default: ''
-        type: string
+
 permissions:
   contents: read
-env:
-  HARBOROS_PRODUCT: nexus
-  HARBOROS_ARCHITECTURE: amd64
-  HARBOROS_STRICT_RELEASE: ${{ inputs.strictRelease }}
-  HARBOROS_RELEASE_MANIFEST: ${{ inputs.releaseManifest != '' && format('{0}/{1}', github.workspace, inputs.releaseManifest) || '' }}
+
 jobs:
-  build-iso:
-    runs-on: [harbor-migration-canary]
-    timeout-minutes: 240
+  export-source-cache:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
     steps:
-      - name: Checkout build system
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: 527cb3b207b744c1aea23c271d13b93157b6569f
-          clean: false
-          fetch-depth: 0
-      - name: Reset build diagnostics
-        id: reset-diagnostics
-        run: sudo rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST
-      - name: Install build dependencies
-        run: sudo apt install -y build-essential debootstrap git python3-pip python3-venv python3-yaml python3-jsonschema squashfs-tools unzip libjson-perl rsync libarchive-tools
-      - name: Validate version and set build identity
-        id: set-version
-        env:
-          BASE_VERSION: ${{ inputs.version }}
-          STRICT_RELEASE: ${{ inputs.strictRelease }}
-          RELEASE_MANIFEST: ${{ inputs.releaseManifest }}
+      - name: Validate and bundle the proven source cache
+        shell: bash
         run: |
           set -euo pipefail
-          if [ "$STRICT_RELEASE" = "true" ]; then
-            test -n "$RELEASE_MANIFEST"
-            VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["system_version"])' "$GITHUB_WORKSPACE/$RELEASE_MANIFEST")"
-            EPOCH="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["source_date_epoch"])' "$GITHUB_WORKSPACE/$RELEASE_MANIFEST")"
-          else
-            test "$BASE_VERSION" = "26.04.0"
-            git ls-remote --exit-code https://github.com/HarborNAS/webui.git "refs/heads/$BASE_VERSION"
-            git ls-remote --exit-code https://github.com/HarborNAS/middleware.git "refs/heads/$BASE_VERSION"
-            VERSION="${BASE_VERSION}-$(date -u +%Y%m%d-%H%M%S)"
-            EPOCH=""
-          fi
-          CODE_NAME="$(python3 -c 'import yaml; print(yaml.safe_load(open("conf/build.manifest", encoding="utf-8"))["code_name"])')"
-          echo "HarborNAS_VERSION=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "TRUENAS_TRAIN=TrueNAS-SCALE-${CODE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "SOURCE_DATE_EPOCH=$EPOCH" >> "$GITHUB_OUTPUT"
-      - name: Checkout component sources
-        env:
-          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
-          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
-          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
-          TRUENAS_VENDOR: HarborOS
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR truenas_webui_OVERRIDE='${{ inputs.version }}' truenas_OVERRIDE='${{ inputs.version }}' make checkout
-      - name: Build Debian components
-        env:
-          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
-          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
-          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
-          TRUENAS_VENDOR: HarborOS
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make packages
-      - name: Build update
-        env:
-          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
-          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
-          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
-          TRUENAS_VENDOR: HarborOS
-          HARBOROS_COMPONENT_READ_TOKEN: ${{ secrets.COMPONENT_RELEASE_READ_TOKEN }}
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,HARBOROS_COMPONENT_READ_TOKEN,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make update
-      - name: Build ISO
-        env:
-          SOURCE_DATE_EPOCH: ${{ steps.set-version.outputs.SOURCE_DATE_EPOCH }}
-          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
-          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
-          TRUENAS_VENDOR: HarborOS
-        run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make iso
-      - name: Save failed build diagnostics
-        if: ${{ failure() && steps.reset-diagnostics.outcome == 'success' }}
+          source_dir="$RUNNER_WORKSPACE/scale-build/scale-build/sources"
+          test -d "$source_dir"
+          test -d "$source_dir/kernel/.git"
+          sudo tar --zstd -cf "$RUNNER_TEMP/scale-build-sources-527cb3b.tar.zst" \
+            -C "$RUNNER_WORKSPACE/scale-build/scale-build" sources
+          sudo chown "$(id -u):$(id -g)" "$RUNNER_TEMP/scale-build-sources-527cb3b.tar.zst"
+          (
+            cd "$RUNNER_TEMP"
+            sha256sum scale-build-sources-527cb3b.tar.zst \
+              | tee scale-build-sources-527cb3b.tar.zst.sha256
+          )
+      - name: Upload source cache relay
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:
-          name: harboros-nexus-${{ steps.set-version.outputs.HarborNAS_VERSION }}-failure-logs
+          name: scale-build-sources-527cb3b
           path: |
-            logs/rootfs-bootstrap.log
-            logs/rootfs-packages.log
-            logs/GITMANIFEST
-          if-no-files-found: warn
-          retention-days: 7
-      - name: Save candidate images and build log
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
-        with:
-          name: harboros-nexus-${{ steps.set-version.outputs.HarborNAS_VERSION }}
-          path: |
-            tmp/release/
-            logs/GITMANIFEST
-            ${{ inputs.releaseManifest }}
+            ${{ runner.temp }}/scale-build-sources-527cb3b.tar.zst
+            ${{ runner.temp }}/scale-build-sources-527cb3b.tar.zst.sha256
+          compression-level: 0
+          retention-days: 1
           if-no-files-found: error
-      - name: Validate stable publication evidence
-        if: ${{ inputs.promotionManifest != '' }}
-        env:
-          RELEASE_MANIFEST: ${{ inputs.releaseManifest }}
-          PROMOTION_MANIFEST: ${{ inputs.promotionManifest }}
-          EXPECTED_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
+
+  import-source-cache:
+    needs: export-source-cache
+    runs-on: [harbor-migration-canary]
+    timeout-minutes: 60
+    steps:
+      - name: Download source cache relay
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: scale-build-sources-527cb3b
+          path: ${{ runner.temp }}/source-cache-relay
+      - name: Verify and install source cache
+        shell: bash
         run: |
           set -euo pipefail
-          test -n "$RELEASE_MANIFEST"
-          test -n "$PROMOTION_MANIFEST"
-          python3 -m scale_build.promotion --release-lock "$GITHUB_WORKSPACE/$RELEASE_MANIFEST" \
-            --manifest "$GITHUB_WORKSPACE/$PROMOTION_MANIFEST" --artifacts-dir "$GITHUB_WORKSPACE/tmp/release" \
-            --expected-version "$EXPECTED_VERSION"
-      - name: Upload ISO and update to stable storage
-        if: ${{ inputs.promotionManifest != '' }}
-        env:
-          QCLOUD_ACCESS_KEY_ID: ${{ secrets.QCLOUD_SECRETID }}
-          QCLOUD_SECRET_ACCESS_KEY: ${{ secrets.QCLOUD_SECRETKEY }}
-          TRUENAS_VERSION: ${{ steps.set-version.outputs.HarborNAS_VERSION }}
-          TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
-        run: |
-          set -euo pipefail
-          isoFileName="TrueNAS-SCALE-${TRUENAS_VERSION}-HarborOS"; updateFileName="TrueNAS-SCALE-${TRUENAS_VERSION}"
-          coscli config add -b harboros-1317635745 -r ap-guangzhou -a willow --init-skip || true
-          for ext in iso iso.sha256; do coscli cp --secret-id "$QCLOUD_ACCESS_KEY_ID" --secret-key "$QCLOUD_SECRET_ACCESS_KEY" "./tmp/release/${isoFileName}.${ext}" "cos://willow/stable/HarborOS-${TRUENAS_VERSION}.${ext}"; done
-          for ext in update update.sha256; do coscli cp --secret-id "$QCLOUD_ACCESS_KEY_ID" --secret-key "$QCLOUD_SECRET_ACCESS_KEY" "./tmp/release/${updateFileName}.${ext}" "cos://willow/stable/HarborOS-${TRUENAS_VERSION}.${ext}"; done
-          R2_ENDPOINT="https://b001991453068c59d8f4aa512bc0b16a.r2.cloudflarestorage.com"
-          R2_BUCKET="harboros-update"
-          for ext in iso iso.sha256 update update.sha256; do
-            /usr/local/bin/aws s3api put-object --endpoint-url "$R2_ENDPOINT" --bucket "$R2_BUCKET" \
-              --key "scale/${TRUENAS_TRAIN}/HarborOS-${TRUENAS_VERSION}.${ext}" \
-              --body "./tmp/release/$(if [[ "$ext" == iso* ]]; then echo "TrueNAS-SCALE-${TRUENAS_VERSION}-HarborOS"; else echo "TrueNAS-SCALE-${TRUENAS_VERSION}"; fi).${ext}"
-          done
+          relay_dir="$RUNNER_TEMP/source-cache-relay"
+          (
+            cd "$relay_dir"
+            sha256sum -c scale-build-sources-527cb3b.tar.zst.sha256
+          )
+          workspace="$RUNNER_WORKSPACE/scale-build/scale-build"
+          test "$workspace" = "/export/actions-runner/_work/scale-build/scale-build"
+          sudo rm -rf -- "$workspace/sources"
+          sudo tar --zstd -xf "$relay_dir/scale-build-sources-527cb3b.tar.zst" -C "$workspace"
+          test -d "$workspace/sources/kernel/.git"
+          sudo du -sh "$workspace/sources"
