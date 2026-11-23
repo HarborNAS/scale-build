@@ -315,7 +315,11 @@ class ProductProfileTests(unittest.TestCase):
             self.assertEqual(data['env']['HARBOROS_ARCHITECTURE'], 'amd64')
             self.assertEqual(data['jobs']['build-iso']['runs-on'], ['self-hosted', 'Linux', 'X64'])
             self.assertTrue(any(
-                step.get('uses') == 'actions/upload-artifact@v4' for step in data['jobs']['build-iso']['steps']
+                step.get('uses') in {
+                    'actions/upload-artifact@v4',
+                    'actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08',
+                }
+                for step in data['jobs']['build-iso']['steps']
             ))
 
 
