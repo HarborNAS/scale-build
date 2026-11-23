@@ -39,6 +39,9 @@ jobs:
         with:
           clean: false
           fetch-depth: 0
+      - name: Reset build diagnostics
+        id: reset-diagnostics
+        run: rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST
       - name: Install build dependencies
         run: sudo apt install -y build-essential debootstrap git python3-pip python3-venv python3-yaml python3-jsonschema squashfs-tools unzip libjson-perl rsync libarchive-tools
       - name: Validate version and set build identity
@@ -93,6 +96,17 @@ jobs:
           TRUENAS_TRAIN: ${{ steps.set-version.outputs.TRUENAS_TRAIN }}
           TRUENAS_VENDOR: HarborOS
         run: sudo --preserve-env=HARBOROS_PRODUCT,HARBOROS_ARCHITECTURE,HARBOROS_STRICT_RELEASE,HARBOROS_RELEASE_MANIFEST,SOURCE_DATE_EPOCH,TRUENAS_VERSION,TRUENAS_TRAIN,TRUENAS_VENDOR make iso
+      - name: Save failed build diagnostics
+        if: ${{ failure() && steps.reset-diagnostics.outcome == 'success' }}
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: harboros-nexus-${{ steps.set-version.outputs.HarborNAS_VERSION }}-failure-logs
+          path: |
+            logs/rootfs-bootstrap.log
+            logs/rootfs-packages.log
+            logs/GITMANIFEST
+          if-no-files-found: warn
+          retention-days: 7
       - name: Save candidate images and build log
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
         with:

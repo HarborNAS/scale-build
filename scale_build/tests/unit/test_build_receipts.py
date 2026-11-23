@@ -284,9 +284,12 @@ class AssemblyIntegrationTests(unittest.TestCase):
                 (directory / 'old-file').write_text('old')
             (root / 'etc/ssh/ssh_host_rsa_key').write_text('device key')
             with patch.object(update, 'CHROOT_BASEDIR', folder), patch.object(
-                update, 'get_manifest', return_value={'base-prune': ['unwanted']}
-            ), patch.object(update, 'run_in_chroot') as command:
+                update, 'get_manifest', return_value={'base-prune': ['unwanted', 'stale-name']}
+            ), patch.object(
+                update, 'installed_packages', return_value=[{'package': 'unwanted'}]
+            ) as inventory, patch.object(update, 'run_in_chroot') as command:
                 update.clean_rootfs()
+            inventory.assert_called_once_with(folder)
             self.assertEqual({entry.name for entry in documentation.iterdir()}, receipts.LEGAL_NOTICE_PACKAGES)
             for name in receipts.LEGAL_NOTICE_PACKAGES:
                 self.assertEqual((documentation / name / 'copyright').read_text(), 'license notice')
@@ -296,6 +299,20 @@ class AssemblyIntegrationTests(unittest.TestCase):
             self.assertTrue((root / 'etc/ssh/old-file').exists())
             self.assertEqual(command.call_args_list[0].args[0], ['apt', 'remove', '-y', 'unwanted'])
             self.assertEqual(command.call_args_list[1].args[0], ['apt', 'autoremove', '-y'])
+
+    def test_cleanup_skips_remove_when_every_prune_entry_is_absent(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for relative in ('usr/share/doc', 'var/cache/apt', 'var/lib/apt/lists', 'var/trash', 'etc/ssh'):
+                (root / relative).mkdir(parents=True)
+            with patch.object(update, 'CHROOT_BASEDIR', folder), patch.object(
+                update, 'get_manifest', return_value={'base-prune': ['stale-name']}
+            ), patch.object(
+                update, 'installed_packages', return_value=[{'package': 'kept'}]
+            ) as inventory, patch.object(update, 'run_in_chroot') as command:
+                update.clean_rootfs()
+            inventory.assert_called_once_with(folder)
+            self.assertEqual(command.call_args_list[0].args[0], ['apt', 'autoremove', '-y'])
 
 
 if __name__ == '__main__':
