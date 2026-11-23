@@ -322,6 +322,20 @@ class ProductProfileTests(unittest.TestCase):
                 for step in data['jobs']['build-iso']['steps']
             ))
 
+    def test_makefile_bootstraps_without_mutating_system_python(self):
+        makefile = Path('Makefile').read_text(encoding='utf-8')
+        check = makefile[makefile.index('check:'):makefile.index('\nall:', makefile.index('check:'))]
+
+        self.assertIn('${PYTHON} -m venv venv-${COMMIT_HASH}', check)
+        self.assertNotIn('${PYTHON} -m pip install', check)
+        self.assertNotIn('BREAK_SYS_PKGS_FLAG', makefile)
+        for workflow in ('buildiso-test.yml', 'buildiso.yml'):
+            with self.subTest(workflow=workflow):
+                self.assertIn(
+                    'python3-venv',
+                    (Path('.github/workflows') / workflow).read_text(encoding='utf-8'),
+                )
+
 
 if __name__ == '__main__':
     unittest.main()
