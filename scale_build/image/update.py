@@ -11,7 +11,9 @@ import stat
 import tempfile
 import time
 
-from scale_build.build_receipts import LEGAL_NOTICE_PACKAGES, RECEIPT_NAME, write_rootfs_build_receipt
+from scale_build.build_receipts import (
+    LEGAL_NOTICE_PACKAGES, RECEIPT_NAME, installed_packages, write_rootfs_build_receipt,
+)
 from scale_build.config import SIGNING_KEY, SIGNING_PASSWORD
 from scale_build.exceptions import CallError
 from scale_build.extensions import build_extensions as do_build_extensions
@@ -416,8 +418,10 @@ def custom_rootfs_setup():
 
 
 def clean_rootfs():
-    to_remove = get_manifest()['base-prune']
-    run_in_chroot(['apt', 'remove', '-y'] + to_remove)
+    installed = {item['package'] for item in installed_packages(CHROOT_BASEDIR)}
+    to_remove = [package for package in get_manifest()['base-prune'] if package in installed]
+    if to_remove:
+        run_in_chroot(['apt', 'remove', '-y'] + to_remove)
 
     # Remove any temp build depends
     run_in_chroot(['apt', 'autoremove', '-y'])

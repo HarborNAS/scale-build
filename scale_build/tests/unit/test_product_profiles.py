@@ -322,6 +322,30 @@ class ProductProfileTests(unittest.TestCase):
                 for step in data['jobs']['build-iso']['steps']
             ))
 
+    def test_strict_workflow_retains_only_failure_diagnostics(self):
+        import yaml
+        workflow = yaml.safe_load((Path('.github/workflows') / 'buildiso.yml').read_text(encoding='utf-8'))
+        reset = next(row for row in workflow['jobs']['build-iso']['steps']
+                     if row.get('name') == 'Reset build diagnostics')
+        step = next(row for row in workflow['jobs']['build-iso']['steps']
+                    if row.get('name') == 'Save failed build diagnostics')
+        self.assertEqual(reset['id'], 'reset-diagnostics')
+        self.assertEqual(
+            reset['run'],
+            'rm -f -- logs/rootfs-bootstrap.log logs/rootfs-packages.log logs/GITMANIFEST',
+        )
+        self.assertEqual(step['if'], "${{ failure() && steps.reset-diagnostics.outcome == 'success' }}")
+        self.assertEqual(
+            step['uses'],
+            'actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08',
+        )
+        self.assertEqual(
+            set(step['with']['path'].splitlines()),
+            {'logs/rootfs-bootstrap.log', 'logs/rootfs-packages.log', 'logs/GITMANIFEST'},
+        )
+        self.assertEqual(step['with']['if-no-files-found'], 'warn')
+        self.assertEqual(step['with']['retention-days'], 7)
+
     def test_makefile_bootstraps_without_mutating_system_python(self):
         makefile = Path('Makefile').read_text(encoding='utf-8')
         check = makefile[makefile.index('check:'):makefile.index('\nall:', makefile.index('check:'))]
